@@ -1,1 +1,1 @@
-pub type StateMachineReceiver<Command> = Fn(Command);
+pub type StateMachineReceiver<Command> = dyn Fn(Command);

@@ -1,6 +1,6 @@
+use super::Term;
 use core::ops::Index;
 use serde::{de::DeserializeOwned, Serialize};
-use super::Term;
 
 pub type LogIndex = usize;
 
