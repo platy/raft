@@ -9,7 +9,7 @@ See the [documentation](https://platy.github.io/raft/raft/).
 
 - [x] in-memory state
 - [x] append entries RPC handling
-- [ ] request vote RPC handling
+- [x] request vote RPC handling
 - [ ] persistent state operations async
 - [ ] rules for state changes, timers and making RPC calls
 - [ ] write to disk

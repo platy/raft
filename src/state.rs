@@ -1,8 +1,9 @@
-use super::log::{self, LogIndex};
+use super::log;
 use super::rpc::{
     AppendEntriesRequest, AppendEntriesResponse, RequestVoteRequest, RequestVoteResponse,
 };
 use super::{ServerId, Term};
+use core::cmp::Ordering;
 
 /// Persistent state on all servers:(Updated on stable storage before responding to RPCs)
 // @todo operations here need to be persisted to disk and therefore async
@@ -29,12 +30,12 @@ impl<Log> Persistent<Log> {
 
 #[derive(Debug, PartialEq)]
 pub struct Leader {
-    next_index: Vec<LogIndex>,
-    match_index: Vec<LogIndex>,
+    next_index: Vec<log::Index>,
+    match_index: Vec<log::Index>,
 }
 
 impl Leader {
-    fn new(num_servers: usize, last_log_index: LogIndex) -> Leader {
+    fn new(num_servers: usize, last_log_index: log::Index) -> Leader {
         let mut next_index = Vec::new();
         next_index.resize(num_servers, last_log_index + 1);
         let mut match_index = Vec::new();
@@ -47,7 +48,7 @@ impl Leader {
 
     /// # Panics
     /// In case the match index tries to decrease
-    fn set_match_index(&mut self, server: ServerId, match_index: LogIndex) {
+    fn set_match_index(&mut self, server: ServerId, match_index: log::Index) {
         assert!(
             match_index >= self.match_index[server as usize],
             "Match index must increase monotonically, tried to decrease from {} to {}",
@@ -78,14 +79,14 @@ impl Default for States {
 pub struct ServerState<Log> {
     state: States,
     persistent_state: Persistent<Log>,
-    commit_index: LogIndex,
-    last_applied: LogIndex,
+    commit_index: log::Index,
+    last_applied: log::Index,
 }
 
 impl<Log: log::Log> ServerState<Log> {
     /// # Panics
     /// In case the term tries to decrease
-    fn set_commit_index(&mut self, commit_index: LogIndex) {
+    fn set_commit_index(&mut self, commit_index: log::Index) {
         assert!(
             commit_index >= self.commit_index,
             "Commit index must increase monotonically, tried to decrease from {} to {}",
@@ -97,7 +98,7 @@ impl<Log: log::Log> ServerState<Log> {
 
     /// # Panics
     /// In case the term tries to decrease
-    fn set_last_applied(&mut self, last_applied: LogIndex) {
+    fn set_last_applied(&mut self, last_applied: log::Index) {
         assert!(
             last_applied >= self.last_applied,
             "Last applied must increase monotonically, tried to decrease from {} to {}",
@@ -150,6 +151,30 @@ impl<Log: log::Log> ServerState<Log> {
             self.set_commit_index(std::cmp::min(req.leader_commit, last_new_entry_index))
         }
         true
+    }
+
+    pub fn receive_request_vote(&mut self, req: RequestVoteRequest) -> RequestVoteResponse {
+        // 1.  Reply false if term < currentTerm (§5.1)
+        let vote_granted = if req.term < self.persistent_state.current_term {
+            false
+        }
+        // 2.  If votedFor is null or candidateId, and candidate’s log is at least as up-to-date as receiver’s log, grant vote (§5.2, §5.4)
+        else if (self.persistent_state.voted_for.is_none()
+            || self.persistent_state.voted_for == Some(req.candidate_id))
+            && self
+                .persistent_state
+                .log
+                .cmp(req.last_log_index, req.last_log_term)
+                != Ordering::Greater
+        {
+            true
+        } else {
+            false
+        };
+        RequestVoteResponse {
+            vote_granted,
+            term: self.persistent_state.current_term,
+        }
     }
 }
 
@@ -473,6 +498,95 @@ mod test_append_entries {
         let res = server.receive_append_entries(req);
         assert_eq!(server.commit_index, 4, "Receiver implementation 4 failed");
         assert!(res.success);
+        assert_eq!(res.term, server.persistent_state.current_term);
+    }
+}
+
+#[cfg(test)]
+mod test_request_vote {
+    use super::ServerState;
+    use crate::log::Item;
+    use crate::rpc::RequestVoteRequest;
+
+    #[test]
+    fn impl1() {
+        let mut server: ServerState<Vec<Item<u8>>> = ServerState::default();
+        server.persistent_state.current_term = 2;
+        let req = RequestVoteRequest {
+            term: 1,
+            candidate_id: 0,
+            last_log_index: 0,
+            last_log_term: 1,
+        };
+        let res = server.receive_request_vote(req);
+        assert!(!res.vote_granted, "Receiver implementation 1 failed");
+        assert_eq!(res.term, server.persistent_state.current_term);
+    }
+
+    #[test]
+    fn impl2_novote_log_same() {
+        let mut server: ServerState<Vec<Item<u8>>> = ServerState::default();
+        server.persistent_state.current_term = 1;
+        server.persistent_state.voted_for = None;
+        server.persistent_state.log.push(Item::new(1, 99));
+        let req = RequestVoteRequest {
+            term: 2,
+            candidate_id: 0,
+            last_log_index: 1,
+            last_log_term: 1,
+        };
+        let res = server.receive_request_vote(req);
+        assert!(res.vote_granted, "Receiver implementation 2 failed");
+        assert_eq!(res.term, server.persistent_state.current_term);
+    }
+
+    #[test]
+    fn impl2_voted_log_shorter() {
+        let mut server: ServerState<Vec<Item<u8>>> = ServerState::default();
+        server.persistent_state.current_term = 1;
+        server.persistent_state.voted_for = Some(0);
+        let req = RequestVoteRequest {
+            term: 2,
+            candidate_id: 0,
+            last_log_index: 1,
+            last_log_term: 1,
+        };
+        let res = server.receive_request_vote(req);
+        assert!(res.vote_granted, "Receiver implementation 2 failed");
+        assert_eq!(res.term, server.persistent_state.current_term);
+    }
+
+    #[test]
+    fn impl2_votedother_log_same() {
+        let mut server: ServerState<Vec<Item<u8>>> = ServerState::default();
+        server.persistent_state.current_term = 1;
+        server.persistent_state.voted_for = Some(1);
+        server.persistent_state.log.push(Item::new(1, 99));
+        let req = RequestVoteRequest {
+            term: 2,
+            candidate_id: 0,
+            last_log_index: 1,
+            last_log_term: 1,
+        };
+        let res = server.receive_request_vote(req);
+        assert!(!res.vote_granted, "Receiver implementation 2 failed");
+        assert_eq!(res.term, server.persistent_state.current_term);
+    }
+
+    #[test]
+    fn impl2_novote_log_longer() {
+        let mut server: ServerState<Vec<Item<u8>>> = ServerState::default();
+        server.persistent_state.current_term = 1;
+        server.persistent_state.voted_for = Some(1);
+        server.persistent_state.log.push(Item::new(1, 99));
+        let req = RequestVoteRequest {
+            term: 2,
+            candidate_id: 0,
+            last_log_index: 0,
+            last_log_term: 1,
+        };
+        let res = server.receive_request_vote(req);
+        assert!(!res.vote_granted, "Receiver implementation 2 failed");
         assert_eq!(res.term, server.persistent_state.current_term);
     }
 }

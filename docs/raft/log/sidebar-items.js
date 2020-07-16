@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Item",""]],"trait":[["Log",""]],"type":[["LogIndex",""]]});
+initSidebarItems({"struct":[["Item",""]],"trait":[["Log",""]],"type":[["Index",""]]});
