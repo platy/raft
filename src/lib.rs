@@ -6,6 +6,6 @@ pub type ServerId = u8;
 pub type Term = u32;
 
 pub mod log;
+pub mod rpc;
 pub mod state;
 pub mod state_machine;
-pub mod rpc;

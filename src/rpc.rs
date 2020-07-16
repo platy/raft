@@ -1,12 +1,12 @@
 //! Raft servers communicate using remote procedure calls(RPCs), and the basic consensus algorithm requires onlytwo types of RPCs. RequestVote RPCs are initiated bycandidates during elections (Section 5.2), and Append-Entries RPCs are initiated by leaders to replicate log en-tries and to provide a form of heartbeat (Section 5.3). Sec-tion 7 adds a third RPC for transferring snapshots betweenservers. Servers retry RPCs if they do not receive a re-sponse in a timely manner, and they issue RPCs in parallelfor best performance.
 
-use super::log::{LogIndex, LogItem};
+use super::log::{Item, LogIndex};
 use super::{ServerId, Term};
 use serde::{Deserialize, Serialize};
 
 /// Invoked by leader to replicate log entries (§5.3); also used asheartbeat (§5.2).
 #[derive(Serialize, Deserialize)]
-pub struct AppendEntriesRequest<Command, LogEntries: IntoIterator<Item = LogItem<Command>>> {
+pub struct AppendEntriesRequest<Command, LogEntries: IntoIterator<Item = Item<Command>>> {
     /// leader’s term
     pub term: Term,
     /// so follower can redirect clients

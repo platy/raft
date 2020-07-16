@@ -1,17 +1,19 @@
 use super::log::{self, LogIndex};
+use super::rpc::{
+    AppendEntriesRequest, AppendEntriesResponse, RequestVoteRequest, RequestVoteResponse,
+};
 use super::{ServerId, Term};
-use super::rpc::{AppendEntriesRequest, AppendEntriesResponse, RequestVoteRequest, RequestVoteResponse};
 
 /// Persistent state on all servers:(Updated on stable storage before responding to RPCs)
 // @todo operations here need to be persisted to disk and therefore async
 #[derive(Default)]
-pub struct PersistentState<Log> {
+pub struct Persistent<Log> {
     current_term: Term,
     voted_for: Option<ServerId>,
     log: Log,
 }
 
-impl<Log> PersistentState<Log> {
+impl<Log> Persistent<Log> {
     /// # Panics
     /// In case the term tries to decrease
     fn set_current_term(&mut self, current_term: Term) {
@@ -26,18 +28,18 @@ impl<Log> PersistentState<Log> {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct LeaderState {
+pub struct Leader {
     next_index: Vec<LogIndex>,
     match_index: Vec<LogIndex>,
 }
 
-impl LeaderState {
-    fn new(num_servers: usize, last_log_index: LogIndex) -> LeaderState {
+impl Leader {
+    fn new(num_servers: usize, last_log_index: LogIndex) -> Leader {
         let mut next_index = Vec::new();
         next_index.resize(num_servers, last_log_index + 1);
         let mut match_index = Vec::new();
         match_index.resize(num_servers, 0);
-        LeaderState {
+        Leader {
             next_index,
             match_index,
         }
@@ -62,7 +64,7 @@ pub enum States {
     Follower,
     Candidate,
     /// Volatile state on leaders:(Reinitialized after election)
-    Leader(LeaderState),
+    Leader(Leader),
 }
 
 impl Default for States {
@@ -75,7 +77,7 @@ impl Default for States {
 #[derive(Default)]
 pub struct ServerState<Log> {
     state: States,
-    persistent_state: PersistentState<Log>,
+    persistent_state: Persistent<Log>,
     commit_index: LogIndex,
     last_applied: LogIndex,
 }
@@ -111,25 +113,38 @@ impl<Log: log::Log> ServerState<Log> {
     /// 3.  If an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all that follow it (§5.3)
     /// 4.  Append any new entries not already in the log
     /// 5.  If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
-    pub fn receive_append_entries<LogEntries: IntoIterator<Item = log::LogItem<Log::Command>>>(&mut self, req: AppendEntriesRequest<Log::Command, LogEntries>) -> AppendEntriesResponse {
+    pub fn receive_append_entries<LogEntries: IntoIterator<Item = log::Item<Log::Command>>>(
+        &mut self,
+        req: AppendEntriesRequest<Log::Command, LogEntries>,
+    ) -> AppendEntriesResponse {
         AppendEntriesResponse {
-            success: self.receive_append_entries_internal(req),
+            success: self.receive_append_entries_int(req),
             term: self.persistent_state.current_term,
         }
     }
 
-    fn receive_append_entries_internal<LogEntries: IntoIterator<Item = log::LogItem<Log::Command>>>(&mut self, req: AppendEntriesRequest<Log::Command, LogEntries>) -> bool {
+    fn receive_append_entries_int<LogEntries: IntoIterator<Item = log::Item<Log::Command>>>(
+        &mut self,
+        req: AppendEntriesRequest<Log::Command, LogEntries>,
+    ) -> bool {
         // 1.  Reply false if term < currentTerm (§5.1)
         if req.term < self.persistent_state.current_term {
-            return false
+            return false;
         }
         // 2.  Reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm (§5.3)
-        if !self.persistent_state.log.log_term_matches(req.prev_log_index, req.prev_log_term) {
+        if !self
+            .persistent_state
+            .log
+            .log_term_matches(req.prev_log_index, req.prev_log_term)
+        {
             return false;
         }
         // 3.  If an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all that follow it (§5.3)
         // 4.  Append any new entries not already in the log
-        let last_new_entry_index = self.persistent_state.log.truncate_if_different_and_append(req.prev_log_index, req.entries);
+        let last_new_entry_index = self
+            .persistent_state
+            .log
+            .truncate_if_different_and_append(req.prev_log_index, req.entries);
         // 5.  If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
         if req.leader_commit > self.commit_index {
             self.set_commit_index(std::cmp::min(req.leader_commit, last_new_entry_index))
@@ -144,14 +159,14 @@ mod test_persistent_state {
 
     #[test]
     fn default() {
-        let persistant_state = PersistentState::<Vec<u8>>::default();
+        let persistant_state = Persistent::<Vec<u8>>::default();
         assert_eq!(persistant_state.current_term, 0);
         assert_eq!(persistant_state.voted_for, None);
     }
 
     #[test]
     fn current_term_increases() {
-        let mut persistant_state = PersistentState::<Vec<u8>>::default();
+        let mut persistant_state = Persistent::<Vec<u8>>::default();
         persistant_state.set_current_term(2);
         assert_eq!(persistant_state.current_term, 2);
     }
@@ -159,7 +174,7 @@ mod test_persistent_state {
     #[test]
     #[should_panic]
     fn current_term_increases_monotonically() {
-        let mut persistant_state = PersistentState::<Vec<u8>>::default();
+        let mut persistant_state = Persistent::<Vec<u8>>::default();
         persistant_state.set_current_term(2);
         persistant_state.set_current_term(1);
     }
@@ -168,9 +183,9 @@ mod test_persistent_state {
 #[cfg(test)]
 mod test_volatile_state {
     use super::*;
-    use crate::log::LogItem;
+    use crate::log::Item;
 
-    type TestServerState = ServerState::<Vec<LogItem<u8>>>;
+    type TestServerState = ServerState<Vec<Item<u8>>>;
 
     #[test]
     fn default() {
@@ -217,7 +232,7 @@ mod test_leader_state {
 
     #[test]
     fn initial() {
-        let leader_state = LeaderState::new(2, 4);
+        let leader_state = Leader::new(2, 4);
         assert_eq!(leader_state.next_index.len(), 2);
         assert!(leader_state.next_index.into_iter().all(|e| e == 5));
         assert_eq!(leader_state.match_index.len(), 2);
@@ -226,7 +241,7 @@ mod test_leader_state {
 
     #[test]
     fn match_index_increases() {
-        let mut leader_state = LeaderState::new(2, 4);
+        let mut leader_state = Leader::new(2, 4);
         leader_state.set_match_index(0, 7);
         assert_eq!(leader_state.match_index[0], 7);
     }
@@ -234,7 +249,7 @@ mod test_leader_state {
     #[test]
     #[should_panic]
     fn match_index_increases_monotonically() {
-        let mut leader_state = LeaderState::new(2, 4);
+        let mut leader_state = Leader::new(2, 4);
         leader_state.set_match_index(0, 2);
         leader_state.set_match_index(0, 1);
     }
@@ -242,13 +257,13 @@ mod test_leader_state {
 
 #[cfg(test)]
 mod test_append_entries {
-    use crate::rpc::AppendEntriesRequest;
-    use crate::log::LogItem;
     use super::ServerState;
+    use crate::log::Item;
+    use crate::rpc::AppendEntriesRequest;
 
     #[test]
     fn impl1() {
-        let mut server: ServerState<Vec<LogItem<u8>>> = ServerState::default();
+        let mut server: ServerState<Vec<Item<u8>>> = ServerState::default();
         server.persistent_state.current_term = 2;
         let req = AppendEntriesRequest {
             term: 1,
@@ -265,7 +280,7 @@ mod test_append_entries {
 
     #[test]
     fn impl2_no_entry() {
-        let mut server: ServerState<Vec<LogItem<u8>>> = ServerState::default();
+        let mut server: ServerState<Vec<Item<u8>>> = ServerState::default();
         server.persistent_state.current_term = 2;
         let req = AppendEntriesRequest {
             term: 2,
@@ -282,9 +297,9 @@ mod test_append_entries {
 
     #[test]
     fn impl2_no_term_match() {
-        let mut server: ServerState<Vec<LogItem<u8>>> = ServerState::default();
+        let mut server: ServerState<Vec<Item<u8>>> = ServerState::default();
         server.persistent_state.current_term = 2;
-        server.persistent_state.log.push(LogItem::new(2, 99));
+        server.persistent_state.log.push(Item::new(2, 99));
         let req = AppendEntriesRequest {
             term: 2,
             leader_id: 0,
@@ -300,102 +315,131 @@ mod test_append_entries {
 
     #[test]
     fn impl3_first_doesnt_match() {
-        let mut server: ServerState<Vec<LogItem<u8>>> = ServerState::default();
+        let mut server: ServerState<Vec<Item<u8>>> = ServerState::default();
         server.persistent_state.current_term = 2;
-        server.persistent_state.log.push(LogItem::new(1, 99));
-        server.persistent_state.log.push(LogItem::new(2, 99));
-        server.persistent_state.log.push(LogItem::new(2, 99));
+        server.persistent_state.log.push(Item::new(1, 99));
+        server.persistent_state.log.push(Item::new(2, 99));
+        server.persistent_state.log.push(Item::new(2, 99));
         let req = AppendEntriesRequest {
             term: 3,
             leader_id: 0,
             prev_log_index: 1,
             prev_log_term: 1,
-            entries: vec![LogItem::new(3, 98)],
+            entries: vec![Item::new(3, 98)],
             leader_commit: 0,
         };
         let res = server.receive_append_entries(req);
-        assert!(server.persistent_state.log.len() <= 2, "Receiver implementation 3 failed");
+        assert!(
+            server.persistent_state.log.len() <= 2,
+            "Receiver implementation 3 failed"
+        );
         assert!(res.success);
         assert_eq!(res.term, server.persistent_state.current_term);
     }
 
     #[test]
     fn impl3_second_doesnt_match() {
-        let mut server: ServerState<Vec<LogItem<u8>>> = ServerState::default();
+        let mut server: ServerState<Vec<Item<u8>>> = ServerState::default();
         server.persistent_state.current_term = 2;
-        server.persistent_state.log.push(LogItem::new(1, 99));
-        server.persistent_state.log.push(LogItem::new(2, 99));
-        server.persistent_state.log.push(LogItem::new(2, 99));
-        server.persistent_state.log.push(LogItem::new(2, 99));
+        server.persistent_state.log.push(Item::new(1, 99));
+        server.persistent_state.log.push(Item::new(2, 99));
+        server.persistent_state.log.push(Item::new(2, 99));
+        server.persistent_state.log.push(Item::new(2, 99));
         let req = AppendEntriesRequest {
             term: 3,
             leader_id: 0,
             prev_log_index: 1,
             prev_log_term: 1,
-            entries: vec![LogItem::new(2, 99), LogItem::new(3, 98)],
+            entries: vec![Item::new(2, 99), Item::new(3, 98)],
             leader_commit: 0,
         };
         let res = server.receive_append_entries(req);
-        assert!(server.persistent_state.log.len() <= 3, "Receiver implementation 3 failed");
+        assert!(
+            server.persistent_state.log.len() <= 3,
+            "Receiver implementation 3 failed"
+        );
         assert!(res.success);
         assert_eq!(res.term, server.persistent_state.current_term);
     }
 
     #[test]
     fn impl3_4() {
-        let mut server: ServerState<Vec<LogItem<u8>>> = ServerState::default();
+        let mut server: ServerState<Vec<Item<u8>>> = ServerState::default();
         server.persistent_state.current_term = 2;
-        server.persistent_state.log.push(LogItem::new(1, 99));
-        server.persistent_state.log.push(LogItem::new(2, 99));
-        server.persistent_state.log.push(LogItem::new(2, 99));
+        server.persistent_state.log.push(Item::new(1, 99));
+        server.persistent_state.log.push(Item::new(2, 99));
+        server.persistent_state.log.push(Item::new(2, 99));
         let req = AppendEntriesRequest {
             term: 3,
             leader_id: 0,
             prev_log_index: 1,
             prev_log_term: 1,
-            entries: vec![LogItem::new(3, 98)],
+            entries: vec![Item::new(3, 98)],
             leader_commit: 0,
         };
         let res = server.receive_append_entries(req);
-        assert!(server.persistent_state.log.len() <= 2, "Receiver implementation 3 failed");
-        assert_eq!(server.persistent_state.log.len(), 2, "Receiver implementation 4 failed");
-        assert_eq!(server.persistent_state.log[1].term, 3, "Receiver implementation 4 failed");
-        assert_eq!(server.persistent_state.log[1].command, 98, "Receiver implementation 4 failed");
+        assert!(
+            server.persistent_state.log.len() <= 2,
+            "Receiver implementation 3 failed"
+        );
+        assert_eq!(
+            server.persistent_state.log.len(),
+            2,
+            "Receiver implementation 4 failed"
+        );
+        assert_eq!(
+            server.persistent_state.log[1].term, 3,
+            "Receiver implementation 4 failed"
+        );
+        assert_eq!(
+            server.persistent_state.log[1].command, 98,
+            "Receiver implementation 4 failed"
+        );
         assert!(res.success);
         assert_eq!(res.term, server.persistent_state.current_term);
     }
 
     #[test]
     fn impl4() {
-        let mut server: ServerState<Vec<LogItem<u8>>> = ServerState::default();
+        let mut server: ServerState<Vec<Item<u8>>> = ServerState::default();
         server.persistent_state.current_term = 2;
-        server.persistent_state.log.push(LogItem::new(1, 99));
-        server.persistent_state.log.push(LogItem::new(2, 99));
-        server.persistent_state.log.push(LogItem::new(2, 99));
+        server.persistent_state.log.push(Item::new(1, 99));
+        server.persistent_state.log.push(Item::new(2, 99));
+        server.persistent_state.log.push(Item::new(2, 99));
         let req = AppendEntriesRequest {
             term: 3,
             leader_id: 0,
             prev_log_index: 3,
             prev_log_term: 2,
-            entries: vec![LogItem::new(3, 98)],
+            entries: vec![Item::new(3, 98)],
             leader_commit: 0,
         };
         let res = server.receive_append_entries(req);
-        assert_eq!(server.persistent_state.log.len(), 4, "Receiver implementation 4 failed");
-        assert_eq!(server.persistent_state.log[3].term, 3, "Receiver implementation 4 failed");
-        assert_eq!(server.persistent_state.log[3].command, 98, "Receiver implementation 4 failed");
+        assert_eq!(
+            server.persistent_state.log.len(),
+            4,
+            "Receiver implementation 4 failed"
+        );
+        assert_eq!(
+            server.persistent_state.log[3].term, 3,
+            "Receiver implementation 4 failed"
+        );
+        assert_eq!(
+            server.persistent_state.log[3].command, 98,
+            "Receiver implementation 4 failed"
+        );
         assert!(res.success);
         assert_eq!(res.term, server.persistent_state.current_term);
     }
 
     #[test]
     fn impl5_leader_commit() {
-        let mut server: ServerState<Vec<LogItem<u8>>> = ServerState::default();
+        let mut server: ServerState<Vec<Item<u8>>> = ServerState::default();
         server.persistent_state.current_term = 2;
         server.commit_index = 1;
-        server.persistent_state.log.push(LogItem::new(1, 99));
-        server.persistent_state.log.push(LogItem::new(2, 99));
-        server.persistent_state.log.push(LogItem::new(2, 99));
+        server.persistent_state.log.push(Item::new(1, 99));
+        server.persistent_state.log.push(Item::new(2, 99));
+        server.persistent_state.log.push(Item::new(2, 99));
         let req = AppendEntriesRequest {
             term: 2,
             leader_id: 0,
@@ -412,18 +456,18 @@ mod test_append_entries {
 
     #[test]
     fn impl5_leader_commit_passes() {
-        let mut server: ServerState<Vec<LogItem<u8>>> = ServerState::default();
+        let mut server: ServerState<Vec<Item<u8>>> = ServerState::default();
         server.persistent_state.current_term = 2;
         server.commit_index = 1;
-        server.persistent_state.log.push(LogItem::new(1, 99));
-        server.persistent_state.log.push(LogItem::new(2, 99));
-        server.persistent_state.log.push(LogItem::new(2, 99));
+        server.persistent_state.log.push(Item::new(1, 99));
+        server.persistent_state.log.push(Item::new(2, 99));
+        server.persistent_state.log.push(Item::new(2, 99));
         let req = AppendEntriesRequest {
             term: 3,
             leader_id: 0,
             prev_log_index: 3,
             prev_log_term: 2,
-            entries: vec![LogItem::new(2, 99)],
+            entries: vec![Item::new(2, 99)],
             leader_commit: 5,
         };
         let res = server.receive_append_entries(req);

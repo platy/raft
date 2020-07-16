@@ -52,13 +52,13 @@
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Raft servers communicate using remote procedure calls(RPCs), and the basic consensus algorithm requires onlytwo types of RPCs. RequestVote RPCs are initiated bycandidates during elections (Section 5.2), and Append-Entries RPCs are initiated by leaders to replicate log en-tries and to provide a form of heartbeat (Section 5.3). Sec-tion 7 adds a third RPC for transferring snapshots betweenservers. Servers retry RPCs if they do not receive a re-sponse in a timely manner, and they issue RPCs in parallelfor best performance.</span>
 
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">log</span>::{<span class="ident">LogIndex</span>, <span class="ident">LogItem</span>};
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">log</span>::{<span class="ident">LogIndex</span>, <span class="ident">Item</span>};
 <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">ServerId</span>, <span class="ident">Term</span>};
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="doccomment">/// Invoked by leader to replicate log entries (§5.3); also used asheartbeat (§5.2).</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AppendEntriesRequest</span><span class="op">&lt;</span><span class="ident">Command</span>, <span class="ident">LogEntries</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">LogItem</span><span class="op">&lt;</span><span class="ident">Command</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AppendEntriesRequest</span><span class="op">&lt;</span><span class="ident">Command</span>, <span class="ident">LogEntries</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">Item</span><span class="op">&lt;</span><span class="ident">Command</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> {
     <span class="doccomment">/// leader’s term</span>
     <span class="kw">pub</span> <span class="ident">term</span>: <span class="ident">Term</span>,
     <span class="doccomment">/// so follower can redirect clients</span>

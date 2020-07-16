@@ -432,21 +432,67 @@
 <span id="432">432</span>
 <span id="433">433</span>
 <span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">log</span>::{<span class="self">self</span>, <span class="ident">LogIndex</span>};
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">rpc</span>::{
+    <span class="ident">AppendEntriesRequest</span>, <span class="ident">AppendEntriesResponse</span>, <span class="ident">RequestVoteRequest</span>, <span class="ident">RequestVoteResponse</span>,
+};
 <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">ServerId</span>, <span class="ident">Term</span>};
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">rpc</span>::{<span class="ident">AppendEntriesRequest</span>, <span class="ident">AppendEntriesResponse</span>, <span class="ident">RequestVoteRequest</span>, <span class="ident">RequestVoteResponse</span>};
 
 <span class="doccomment">/// Persistent state on all servers:(Updated on stable storage before responding to RPCs)</span>
 <span class="comment">// @todo operations here need to be persisted to disk and therefore async</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PersistentState</span><span class="op">&lt;</span><span class="ident">Log</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Persistent</span><span class="op">&lt;</span><span class="ident">Log</span><span class="op">&gt;</span> {
     <span class="ident">current_term</span>: <span class="ident">Term</span>,
     <span class="ident">voted_for</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ServerId</span><span class="op">&gt;</span>,
     <span class="ident">log</span>: <span class="ident">Log</span>,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">Log</span><span class="op">&gt;</span> <span class="ident">PersistentState</span><span class="op">&lt;</span><span class="ident">Log</span><span class="op">&gt;</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">Log</span><span class="op">&gt;</span> <span class="ident">Persistent</span><span class="op">&lt;</span><span class="ident">Log</span><span class="op">&gt;</span> {
     <span class="doccomment">/// # Panics</span>
     <span class="doccomment">/// In case the term tries to decrease</span>
     <span class="kw">fn</span> <span class="ident">set_current_term</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">current_term</span>: <span class="ident">Term</span>) {
@@ -461,18 +507,18 @@
 }
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LeaderState</span> {
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Leader</span> {
     <span class="ident">next_index</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">LogIndex</span><span class="op">&gt;</span>,
     <span class="ident">match_index</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">LogIndex</span><span class="op">&gt;</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">LeaderState</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">num_servers</span>: <span class="ident">usize</span>, <span class="ident">last_log_index</span>: <span class="ident">LogIndex</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">LeaderState</span> {
+<span class="kw">impl</span> <span class="ident">Leader</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">num_servers</span>: <span class="ident">usize</span>, <span class="ident">last_log_index</span>: <span class="ident">LogIndex</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Leader</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">next_index</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
         <span class="ident">next_index</span>.<span class="ident">resize</span>(<span class="ident">num_servers</span>, <span class="ident">last_log_index</span> <span class="op">+</span> <span class="number">1</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">match_index</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
         <span class="ident">match_index</span>.<span class="ident">resize</span>(<span class="ident">num_servers</span>, <span class="number">0</span>);
-        <span class="ident">LeaderState</span> {
+        <span class="ident">Leader</span> {
             <span class="ident">next_index</span>,
             <span class="ident">match_index</span>,
         }
@@ -497,7 +543,7 @@
     <span class="ident">Follower</span>,
     <span class="ident">Candidate</span>,
     <span class="doccomment">/// Volatile state on leaders:(Reinitialized after election)</span>
-    <span class="ident">Leader</span>(<span class="ident">LeaderState</span>),
+    <span class="ident">Leader</span>(<span class="ident">Leader</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">States</span> {
@@ -510,7 +556,7 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Log</span><span class="op">&gt;</span> {
     <span class="ident">state</span>: <span class="ident">States</span>,
-    <span class="ident">persistent_state</span>: <span class="ident">PersistentState</span><span class="op">&lt;</span><span class="ident">Log</span><span class="op">&gt;</span>,
+    <span class="ident">persistent_state</span>: <span class="ident">Persistent</span><span class="op">&lt;</span><span class="ident">Log</span><span class="op">&gt;</span>,
     <span class="ident">commit_index</span>: <span class="ident">LogIndex</span>,
     <span class="ident">last_applied</span>: <span class="ident">LogIndex</span>,
 }
@@ -546,25 +592,38 @@
     <span class="doccomment">/// 3.  If an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all that follow it (§5.3)</span>
     <span class="doccomment">/// 4.  Append any new entries not already in the log</span>
     <span class="doccomment">/// 5.  If leaderCommit &gt; commitIndex, set commitIndex = min(leaderCommit, index of last new entry)</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">receive_append_entries</span><span class="op">&lt;</span><span class="ident">LogEntries</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">log</span>::<span class="ident">LogItem</span><span class="op">&lt;</span><span class="ident">Log</span>::<span class="ident">Command</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">req</span>: <span class="ident">AppendEntriesRequest</span><span class="op">&lt;</span><span class="ident">Log</span>::<span class="ident">Command</span>, <span class="ident">LogEntries</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">AppendEntriesResponse</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">receive_append_entries</span><span class="op">&lt;</span><span class="ident">LogEntries</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">log</span>::<span class="ident">Item</span><span class="op">&lt;</span><span class="ident">Log</span>::<span class="ident">Command</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>(
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+        <span class="ident">req</span>: <span class="ident">AppendEntriesRequest</span><span class="op">&lt;</span><span class="ident">Log</span>::<span class="ident">Command</span>, <span class="ident">LogEntries</span><span class="op">&gt;</span>,
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">AppendEntriesResponse</span> {
         <span class="ident">AppendEntriesResponse</span> {
-            <span class="ident">success</span>: <span class="self">self</span>.<span class="ident">receive_append_entries_internal</span>(<span class="ident">req</span>),
+            <span class="ident">success</span>: <span class="self">self</span>.<span class="ident">receive_append_entries_int</span>(<span class="ident">req</span>),
             <span class="ident">term</span>: <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span>,
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">receive_append_entries_internal</span><span class="op">&lt;</span><span class="ident">LogEntries</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">log</span>::<span class="ident">LogItem</span><span class="op">&lt;</span><span class="ident">Log</span>::<span class="ident">Command</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">req</span>: <span class="ident">AppendEntriesRequest</span><span class="op">&lt;</span><span class="ident">Log</span>::<span class="ident">Command</span>, <span class="ident">LogEntries</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">receive_append_entries_int</span><span class="op">&lt;</span><span class="ident">LogEntries</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">log</span>::<span class="ident">Item</span><span class="op">&lt;</span><span class="ident">Log</span>::<span class="ident">Command</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>(
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+        <span class="ident">req</span>: <span class="ident">AppendEntriesRequest</span><span class="op">&lt;</span><span class="ident">Log</span>::<span class="ident">Command</span>, <span class="ident">LogEntries</span><span class="op">&gt;</span>,
+    ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="comment">// 1.  Reply false if term &lt; currentTerm (§5.1)</span>
         <span class="kw">if</span> <span class="ident">req</span>.<span class="ident">term</span> <span class="op">&lt;</span> <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> {
-            <span class="kw">return</span> <span class="bool-val">false</span>
+            <span class="kw">return</span> <span class="bool-val">false</span>;
         }
         <span class="comment">// 2.  Reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm (§5.3)</span>
-        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">log_term_matches</span>(<span class="ident">req</span>.<span class="ident">prev_log_index</span>, <span class="ident">req</span>.<span class="ident">prev_log_term</span>) {
+        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>
+            .<span class="ident">persistent_state</span>
+            .<span class="ident">log</span>
+            .<span class="ident">log_term_matches</span>(<span class="ident">req</span>.<span class="ident">prev_log_index</span>, <span class="ident">req</span>.<span class="ident">prev_log_term</span>)
+        {
             <span class="kw">return</span> <span class="bool-val">false</span>;
         }
         <span class="comment">// 3.  If an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all that follow it (§5.3)</span>
         <span class="comment">// 4.  Append any new entries not already in the log</span>
-        <span class="kw">let</span> <span class="ident">last_new_entry_index</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">truncate_if_different_and_append</span>(<span class="ident">req</span>.<span class="ident">prev_log_index</span>, <span class="ident">req</span>.<span class="ident">entries</span>);
+        <span class="kw">let</span> <span class="ident">last_new_entry_index</span> <span class="op">=</span> <span class="self">self</span>
+            .<span class="ident">persistent_state</span>
+            .<span class="ident">log</span>
+            .<span class="ident">truncate_if_different_and_append</span>(<span class="ident">req</span>.<span class="ident">prev_log_index</span>, <span class="ident">req</span>.<span class="ident">entries</span>);
         <span class="comment">// 5.  If leaderCommit &gt; commitIndex, set commitIndex = min(leaderCommit, index of last new entry)</span>
         <span class="kw">if</span> <span class="ident">req</span>.<span class="ident">leader_commit</span> <span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">commit_index</span> {
             <span class="self">self</span>.<span class="ident">set_commit_index</span>(<span class="ident">std</span>::<span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">req</span>.<span class="ident">leader_commit</span>, <span class="ident">last_new_entry_index</span>))
@@ -579,14 +638,14 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">default</span>() {
-        <span class="kw">let</span> <span class="ident">persistant_state</span> <span class="op">=</span> <span class="ident">PersistentState</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="ident">persistant_state</span> <span class="op">=</span> <span class="ident">Persistent</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>::<span class="ident">default</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">persistant_state</span>.<span class="ident">current_term</span>, <span class="number">0</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">persistant_state</span>.<span class="ident">voted_for</span>, <span class="prelude-val">None</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">current_term_increases</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">persistant_state</span> <span class="op">=</span> <span class="ident">PersistentState</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">persistant_state</span> <span class="op">=</span> <span class="ident">Persistent</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>::<span class="ident">default</span>();
         <span class="ident">persistant_state</span>.<span class="ident">set_current_term</span>(<span class="number">2</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">persistant_state</span>.<span class="ident">current_term</span>, <span class="number">2</span>);
     }
@@ -594,7 +653,7 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="attribute">#[<span class="ident">should_panic</span>]</span>
     <span class="kw">fn</span> <span class="ident">current_term_increases_monotonically</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">persistant_state</span> <span class="op">=</span> <span class="ident">PersistentState</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">persistant_state</span> <span class="op">=</span> <span class="ident">Persistent</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>::<span class="ident">default</span>();
         <span class="ident">persistant_state</span>.<span class="ident">set_current_term</span>(<span class="number">2</span>);
         <span class="ident">persistant_state</span>.<span class="ident">set_current_term</span>(<span class="number">1</span>);
     }
@@ -603,9 +662,9 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">test_volatile_state</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">log</span>::<span class="ident">LogItem</span>;
+    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">log</span>::<span class="ident">Item</span>;
 
-    <span class="kw">type</span> <span class="ident">TestServerState</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">LogItem</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>;
+    <span class="kw">type</span> <span class="ident">TestServerState</span> <span class="op">=</span> <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">default</span>() {
@@ -652,7 +711,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">initial</span>() {
-        <span class="kw">let</span> <span class="ident">leader_state</span> <span class="op">=</span> <span class="ident">LeaderState</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">4</span>);
+        <span class="kw">let</span> <span class="ident">leader_state</span> <span class="op">=</span> <span class="ident">Leader</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">4</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">leader_state</span>.<span class="ident">next_index</span>.<span class="ident">len</span>(), <span class="number">2</span>);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">leader_state</span>.<span class="ident">next_index</span>.<span class="ident">into_iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">e</span> <span class="op">=</span><span class="op">=</span> <span class="number">5</span>));
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">leader_state</span>.<span class="ident">match_index</span>.<span class="ident">len</span>(), <span class="number">2</span>);
@@ -661,7 +720,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">match_index_increases</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">leader_state</span> <span class="op">=</span> <span class="ident">LeaderState</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">4</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">leader_state</span> <span class="op">=</span> <span class="ident">Leader</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">4</span>);
         <span class="ident">leader_state</span>.<span class="ident">set_match_index</span>(<span class="number">0</span>, <span class="number">7</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">leader_state</span>.<span class="ident">match_index</span>[<span class="number">0</span>], <span class="number">7</span>);
     }
@@ -669,7 +728,7 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="attribute">#[<span class="ident">should_panic</span>]</span>
     <span class="kw">fn</span> <span class="ident">match_index_increases_monotonically</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">leader_state</span> <span class="op">=</span> <span class="ident">LeaderState</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">4</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">leader_state</span> <span class="op">=</span> <span class="ident">Leader</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">4</span>);
         <span class="ident">leader_state</span>.<span class="ident">set_match_index</span>(<span class="number">0</span>, <span class="number">2</span>);
         <span class="ident">leader_state</span>.<span class="ident">set_match_index</span>(<span class="number">0</span>, <span class="number">1</span>);
     }
@@ -677,13 +736,13 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">test_append_entries</span> {
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">rpc</span>::<span class="ident">AppendEntriesRequest</span>;
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">log</span>::<span class="ident">LogItem</span>;
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">ServerState</span>;
+    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">log</span>::<span class="ident">Item</span>;
+    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">rpc</span>::<span class="ident">AppendEntriesRequest</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl1</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">LogItem</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
         <span class="kw">let</span> <span class="ident">req</span> <span class="op">=</span> <span class="ident">AppendEntriesRequest</span> {
             <span class="ident">term</span>: <span class="number">1</span>,
@@ -700,7 +759,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl2_no_entry</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">LogItem</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
         <span class="kw">let</span> <span class="ident">req</span> <span class="op">=</span> <span class="ident">AppendEntriesRequest</span> {
             <span class="ident">term</span>: <span class="number">2</span>,
@@ -717,9 +776,9 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl2_no_term_match</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">LogItem</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
         <span class="kw">let</span> <span class="ident">req</span> <span class="op">=</span> <span class="ident">AppendEntriesRequest</span> {
             <span class="ident">term</span>: <span class="number">2</span>,
             <span class="ident">leader_id</span>: <span class="number">0</span>,
@@ -735,102 +794,131 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl3_first_doesnt_match</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">LogItem</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
         <span class="kw">let</span> <span class="ident">req</span> <span class="op">=</span> <span class="ident">AppendEntriesRequest</span> {
             <span class="ident">term</span>: <span class="number">3</span>,
             <span class="ident">leader_id</span>: <span class="number">0</span>,
             <span class="ident">prev_log_index</span>: <span class="number">1</span>,
             <span class="ident">prev_log_term</span>: <span class="number">1</span>,
-            <span class="ident">entries</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">3</span>, <span class="number">98</span>)],
+            <span class="ident">entries</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">3</span>, <span class="number">98</span>)],
             <span class="ident">leader_commit</span>: <span class="number">0</span>,
         };
         <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">server</span>.<span class="ident">receive_append_entries</span>(<span class="ident">req</span>);
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">len</span>() <span class="op">&lt;</span><span class="op">=</span> <span class="number">2</span>, <span class="string">&quot;Receiver implementation 3 failed&quot;</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(
+            <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">len</span>() <span class="op">&lt;</span><span class="op">=</span> <span class="number">2</span>,
+            <span class="string">&quot;Receiver implementation 3 failed&quot;</span>
+        );
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">res</span>.<span class="ident">success</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">res</span>.<span class="ident">term</span>, <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl3_second_doesnt_match</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">LogItem</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
         <span class="kw">let</span> <span class="ident">req</span> <span class="op">=</span> <span class="ident">AppendEntriesRequest</span> {
             <span class="ident">term</span>: <span class="number">3</span>,
             <span class="ident">leader_id</span>: <span class="number">0</span>,
             <span class="ident">prev_log_index</span>: <span class="number">1</span>,
             <span class="ident">prev_log_term</span>: <span class="number">1</span>,
-            <span class="ident">entries</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>), <span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">3</span>, <span class="number">98</span>)],
+            <span class="ident">entries</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>), <span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">3</span>, <span class="number">98</span>)],
             <span class="ident">leader_commit</span>: <span class="number">0</span>,
         };
         <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">server</span>.<span class="ident">receive_append_entries</span>(<span class="ident">req</span>);
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">len</span>() <span class="op">&lt;</span><span class="op">=</span> <span class="number">3</span>, <span class="string">&quot;Receiver implementation 3 failed&quot;</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(
+            <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">len</span>() <span class="op">&lt;</span><span class="op">=</span> <span class="number">3</span>,
+            <span class="string">&quot;Receiver implementation 3 failed&quot;</span>
+        );
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">res</span>.<span class="ident">success</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">res</span>.<span class="ident">term</span>, <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl3_4</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">LogItem</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
         <span class="kw">let</span> <span class="ident">req</span> <span class="op">=</span> <span class="ident">AppendEntriesRequest</span> {
             <span class="ident">term</span>: <span class="number">3</span>,
             <span class="ident">leader_id</span>: <span class="number">0</span>,
             <span class="ident">prev_log_index</span>: <span class="number">1</span>,
             <span class="ident">prev_log_term</span>: <span class="number">1</span>,
-            <span class="ident">entries</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">3</span>, <span class="number">98</span>)],
+            <span class="ident">entries</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">3</span>, <span class="number">98</span>)],
             <span class="ident">leader_commit</span>: <span class="number">0</span>,
         };
         <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">server</span>.<span class="ident">receive_append_entries</span>(<span class="ident">req</span>);
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">len</span>() <span class="op">&lt;</span><span class="op">=</span> <span class="number">2</span>, <span class="string">&quot;Receiver implementation 3 failed&quot;</span>);
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">len</span>(), <span class="number">2</span>, <span class="string">&quot;Receiver implementation 4 failed&quot;</span>);
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>[<span class="number">1</span>].<span class="ident">term</span>, <span class="number">3</span>, <span class="string">&quot;Receiver implementation 4 failed&quot;</span>);
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>[<span class="number">1</span>].<span class="ident">command</span>, <span class="number">98</span>, <span class="string">&quot;Receiver implementation 4 failed&quot;</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(
+            <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">len</span>() <span class="op">&lt;</span><span class="op">=</span> <span class="number">2</span>,
+            <span class="string">&quot;Receiver implementation 3 failed&quot;</span>
+        );
+        <span class="macro">assert_eq</span><span class="macro">!</span>(
+            <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">len</span>(),
+            <span class="number">2</span>,
+            <span class="string">&quot;Receiver implementation 4 failed&quot;</span>
+        );
+        <span class="macro">assert_eq</span><span class="macro">!</span>(
+            <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>[<span class="number">1</span>].<span class="ident">term</span>, <span class="number">3</span>,
+            <span class="string">&quot;Receiver implementation 4 failed&quot;</span>
+        );
+        <span class="macro">assert_eq</span><span class="macro">!</span>(
+            <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>[<span class="number">1</span>].<span class="ident">command</span>, <span class="number">98</span>,
+            <span class="string">&quot;Receiver implementation 4 failed&quot;</span>
+        );
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">res</span>.<span class="ident">success</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">res</span>.<span class="ident">term</span>, <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl4</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">LogItem</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
         <span class="kw">let</span> <span class="ident">req</span> <span class="op">=</span> <span class="ident">AppendEntriesRequest</span> {
             <span class="ident">term</span>: <span class="number">3</span>,
             <span class="ident">leader_id</span>: <span class="number">0</span>,
             <span class="ident">prev_log_index</span>: <span class="number">3</span>,
             <span class="ident">prev_log_term</span>: <span class="number">2</span>,
-            <span class="ident">entries</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">3</span>, <span class="number">98</span>)],
+            <span class="ident">entries</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">3</span>, <span class="number">98</span>)],
             <span class="ident">leader_commit</span>: <span class="number">0</span>,
         };
         <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">server</span>.<span class="ident">receive_append_entries</span>(<span class="ident">req</span>);
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">len</span>(), <span class="number">4</span>, <span class="string">&quot;Receiver implementation 4 failed&quot;</span>);
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>[<span class="number">3</span>].<span class="ident">term</span>, <span class="number">3</span>, <span class="string">&quot;Receiver implementation 4 failed&quot;</span>);
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>[<span class="number">3</span>].<span class="ident">command</span>, <span class="number">98</span>, <span class="string">&quot;Receiver implementation 4 failed&quot;</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(
+            <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">len</span>(),
+            <span class="number">4</span>,
+            <span class="string">&quot;Receiver implementation 4 failed&quot;</span>
+        );
+        <span class="macro">assert_eq</span><span class="macro">!</span>(
+            <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>[<span class="number">3</span>].<span class="ident">term</span>, <span class="number">3</span>,
+            <span class="string">&quot;Receiver implementation 4 failed&quot;</span>
+        );
+        <span class="macro">assert_eq</span><span class="macro">!</span>(
+            <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>[<span class="number">3</span>].<span class="ident">command</span>, <span class="number">98</span>,
+            <span class="string">&quot;Receiver implementation 4 failed&quot;</span>
+        );
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">res</span>.<span class="ident">success</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">res</span>.<span class="ident">term</span>, <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl5_leader_commit</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">LogItem</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
         <span class="ident">server</span>.<span class="ident">commit_index</span> <span class="op">=</span> <span class="number">1</span>;
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
         <span class="kw">let</span> <span class="ident">req</span> <span class="op">=</span> <span class="ident">AppendEntriesRequest</span> {
             <span class="ident">term</span>: <span class="number">2</span>,
             <span class="ident">leader_id</span>: <span class="number">0</span>,
@@ -847,18 +935,18 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl5_leader_commit_passes</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">LogItem</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
         <span class="ident">server</span>.<span class="ident">commit_index</span> <span class="op">=</span> <span class="number">1</span>;
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
-        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
+        <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
         <span class="kw">let</span> <span class="ident">req</span> <span class="op">=</span> <span class="ident">AppendEntriesRequest</span> {
             <span class="ident">term</span>: <span class="number">3</span>,
             <span class="ident">leader_id</span>: <span class="number">0</span>,
             <span class="ident">prev_log_index</span>: <span class="number">3</span>,
             <span class="ident">prev_log_term</span>: <span class="number">2</span>,
-            <span class="ident">entries</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">LogItem</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>)],
+            <span class="ident">entries</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>)],
             <span class="ident">leader_commit</span>: <span class="number">5</span>,
         };
         <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">server</span>.<span class="ident">receive_append_entries</span>(<span class="ident">req</span>);
