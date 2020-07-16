@@ -36,14 +36,14 @@ pub trait Log {
     /// If the logs end with the same term, then whichever log is longer is more up-to-date.
     fn cmp(&self, other_last_log_index: Index, other_last_log_term: Term) -> Ordering {
         let own_last_log_term = self.last_log_term();
-        let own_last_log_index = self.last_index();
+        let own_last_log_index = self.last_log_index();
         own_last_log_term
             .cmp(&other_last_log_term)
             .then(own_last_log_index.cmp(&other_last_log_index))
     }
 
     fn last_log_term(&self) -> Term;
-    fn last_index(&self) -> Index;
+    fn last_log_index(&self) -> Index;
 
     fn get_command(&self, idx: Index) -> &Self::Command;
 }
@@ -87,7 +87,7 @@ impl<Command> Log for Vec<Item<Command>> {
         self.last().map_or(0, |e| e.term)
     }
 
-    fn last_index(&self) -> Index {
+    fn last_log_index(&self) -> Index {
         self.len()
     }
 

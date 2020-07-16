@@ -36,11 +36,11 @@ pub struct Leader {
 }
 
 impl Leader {
-    fn new(num_servers: usize, last_log_index: log::Index) -> Leader {
+    fn new(num_servers: ServerId, last_log_index: log::Index) -> Leader {
         let mut next_index = Vec::new();
-        next_index.resize(num_servers, last_log_index + 1);
+        next_index.resize(num_servers as usize, last_log_index + 1);
         let mut match_index = Vec::new();
-        match_index.resize(num_servers, 0);
+        match_index.resize(num_servers as usize, 0);
         Leader {
             next_index,
             match_index,
@@ -89,8 +89,66 @@ impl<Log: log::Log> ServerState<Log> {
         self.persistent_state.current_term
     }
 
-    pub fn set_current_term(&mut self, term: Term) {
-        self.persistent_state.set_current_term(term)
+    pub fn voted_for(&self) -> Option<ServerId> {
+        self.persistent_state.voted_for
+    }
+
+    pub fn commit_index(&self) -> log::Index {
+        self.commit_index
+    }
+
+    pub fn is_follower(&self) -> bool {
+        States::Follower == self.state
+    }
+
+    pub fn is_candidate(&self) -> bool {
+        States::Candidate == self.state
+    }
+
+    pub fn is_leader(&self) -> bool {
+        if let States::Leader(_) = self.state {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn follow_new_term(&mut self, term: Term) {
+        self.persistent_state.set_current_term(term);
+        self.state = States::Follower;
+    }
+
+    /// No messages have been received over the election timeout.
+    /// # Followers (§5.2):
+    /// -- If election timeout elapses without receiving AppendEntriesRPC from current leader or granting vote to candidate: convert to candidate
+    /// # Candidates (§5.2):
+    /// - On conversion to candidate, start election:
+    /// -- Increment currentTerm
+    /// -- Vote for self
+    /// -- Reset election timer (to be handled by caller)
+    /// -- Send RequestVote RPCs to all other servers
+    pub fn start_election(&mut self, server_id: ServerId) -> RequestVoteRequest {
+        // convert to candidate
+        self.state = States::Candidate;
+        // Increment currentTerm
+        self.persistent_state.current_term += 1;
+        // Vote for self
+        self.persistent_state.voted_for = Some(server_id);
+        // Reset election timer - job of caller
+        // Send RequestVote RPCs to all other servers
+        RequestVoteRequest {
+            term: self.persistent_state.current_term,
+            candidate_id: server_id,
+            last_log_index: self.persistent_state.log.last_log_index(),
+            last_log_term: self.persistent_state.log.last_log_term(),
+        }
+    }
+
+    pub fn become_leader(&mut self, num_servers: ServerId) {
+        self.state = States::Leader(Leader::new(
+            num_servers,
+            self.persistent_state.log.last_log_index(),
+        ))
     }
 
     /// # Panics
@@ -121,7 +179,7 @@ impl<Log: log::Log> ServerState<Log> {
         self.last_applied = last_applied;
     }
 
-    /// Invoked by leader to replicate log entries (§5.3); also used asheartbeat (§5.2).
+    /// Invoked by leader to replicate log entries (§5.3); also used as heartbeat (§5.2).
     /// 1.  Reply false if term < currentTerm (§5.1)
     /// 2.  Reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm (§5.3)
     /// 3.  If an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all that follow it (§5.3)
@@ -146,10 +204,11 @@ impl<Log: log::Log> ServerState<Log> {
             return false;
         }
         // 2.  Reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm (§5.3)
-        if !self
-            .persistent_state
-            .log
-            .log_term_matches(req.prev_log_index, req.prev_log_term)
+        if req.prev_log_index != 0
+            && !self
+                .persistent_state
+                .log
+                .log_term_matches(req.prev_log_index, req.prev_log_term)
         {
             return false;
         }

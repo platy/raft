@@ -619,6 +619,65 @@
 <span id="619">619</span>
 <span id="620">620</span>
 <span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
+<span id="625">625</span>
+<span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
+<span id="629">629</span>
+<span id="630">630</span>
+<span id="631">631</span>
+<span id="632">632</span>
+<span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">log</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">rpc</span>::{
@@ -658,11 +717,11 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Leader</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">num_servers</span>: <span class="ident">usize</span>, <span class="ident">last_log_index</span>: <span class="ident">log</span>::<span class="ident">Index</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Leader</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">num_servers</span>: <span class="ident">ServerId</span>, <span class="ident">last_log_index</span>: <span class="ident">log</span>::<span class="ident">Index</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Leader</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">next_index</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
-        <span class="ident">next_index</span>.<span class="ident">resize</span>(<span class="ident">num_servers</span>, <span class="ident">last_log_index</span> <span class="op">+</span> <span class="number">1</span>);
+        <span class="ident">next_index</span>.<span class="ident">resize</span>(<span class="ident">num_servers</span> <span class="kw">as</span> <span class="ident">usize</span>, <span class="ident">last_log_index</span> <span class="op">+</span> <span class="number">1</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">match_index</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
-        <span class="ident">match_index</span>.<span class="ident">resize</span>(<span class="ident">num_servers</span>, <span class="number">0</span>);
+        <span class="ident">match_index</span>.<span class="ident">resize</span>(<span class="ident">num_servers</span> <span class="kw">as</span> <span class="ident">usize</span>, <span class="number">0</span>);
         <span class="ident">Leader</span> {
             <span class="ident">next_index</span>,
             <span class="ident">match_index</span>,
@@ -711,8 +770,66 @@
         <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span>
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_current_term</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">term</span>: <span class="ident">Term</span>) {
-        <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">set_current_term</span>(<span class="ident">term</span>)
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">voted_for</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ServerId</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">voted_for</span>
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">commit_index</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">log</span>::<span class="ident">Index</span> {
+        <span class="self">self</span>.<span class="ident">commit_index</span>
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_follower</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="ident">States</span>::<span class="ident">Follower</span> <span class="op">=</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">state</span>
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_candidate</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="ident">States</span>::<span class="ident">Candidate</span> <span class="op">=</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">state</span>
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_leader</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">States</span>::<span class="ident">Leader</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">state</span> {
+            <span class="bool-val">true</span>
+        } <span class="kw">else</span> {
+            <span class="bool-val">false</span>
+        }
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">follow_new_term</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">term</span>: <span class="ident">Term</span>) {
+        <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">set_current_term</span>(<span class="ident">term</span>);
+        <span class="self">self</span>.<span class="ident">state</span> <span class="op">=</span> <span class="ident">States</span>::<span class="ident">Follower</span>;
+    }
+
+    <span class="doccomment">/// No messages have been received over the election timeout.</span>
+    <span class="doccomment">/// # Followers (§5.2):</span>
+    <span class="doccomment">/// -- If election timeout elapses without receiving AppendEntriesRPC from current leader or granting vote to candidate: convert to candidate</span>
+    <span class="doccomment">/// # Candidates (§5.2):</span>
+    <span class="doccomment">/// - On conversion to candidate, start election:</span>
+    <span class="doccomment">/// -- Increment currentTerm</span>
+    <span class="doccomment">/// -- Vote for self</span>
+    <span class="doccomment">/// -- Reset election timer (to be handled by caller)</span>
+    <span class="doccomment">/// -- Send RequestVote RPCs to all other servers</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start_election</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">server_id</span>: <span class="ident">ServerId</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RequestVoteRequest</span> {
+        <span class="comment">// convert to candidate</span>
+        <span class="self">self</span>.<span class="ident">state</span> <span class="op">=</span> <span class="ident">States</span>::<span class="ident">Candidate</span>;
+        <span class="comment">// Increment currentTerm</span>
+        <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
+        <span class="comment">// Vote for self</span>
+        <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">voted_for</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">server_id</span>);
+        <span class="comment">// Reset election timer - job of caller</span>
+        <span class="comment">// Send RequestVote RPCs to all other servers</span>
+        <span class="ident">RequestVoteRequest</span> {
+            <span class="ident">term</span>: <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span>,
+            <span class="ident">candidate_id</span>: <span class="ident">server_id</span>,
+            <span class="ident">last_log_index</span>: <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">last_log_index</span>(),
+            <span class="ident">last_log_term</span>: <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">last_log_term</span>(),
+        }
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">become_leader</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">num_servers</span>: <span class="ident">ServerId</span>) {
+        <span class="self">self</span>.<span class="ident">state</span> <span class="op">=</span> <span class="ident">States</span>::<span class="ident">Leader</span>(<span class="ident">Leader</span>::<span class="ident">new</span>(
+            <span class="ident">num_servers</span>,
+            <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">last_log_index</span>(),
+        ))
     }
 
     <span class="doccomment">/// # Panics</span>
@@ -743,7 +860,7 @@
         <span class="self">self</span>.<span class="ident">last_applied</span> <span class="op">=</span> <span class="ident">last_applied</span>;
     }
 
-    <span class="doccomment">/// Invoked by leader to replicate log entries (§5.3); also used asheartbeat (§5.2).</span>
+    <span class="doccomment">/// Invoked by leader to replicate log entries (§5.3); also used as heartbeat (§5.2).</span>
     <span class="doccomment">/// 1.  Reply false if term &lt; currentTerm (§5.1)</span>
     <span class="doccomment">/// 2.  Reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm (§5.3)</span>
     <span class="doccomment">/// 3.  If an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all that follow it (§5.3)</span>
@@ -768,10 +885,11 @@
             <span class="kw">return</span> <span class="bool-val">false</span>;
         }
         <span class="comment">// 2.  Reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm (§5.3)</span>
-        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>
-            .<span class="ident">persistent_state</span>
-            .<span class="ident">log</span>
-            .<span class="ident">log_term_matches</span>(<span class="ident">req</span>.<span class="ident">prev_log_index</span>, <span class="ident">req</span>.<span class="ident">prev_log_term</span>)
+        <span class="kw">if</span> <span class="ident">req</span>.<span class="ident">prev_log_index</span> <span class="op">!</span><span class="op">=</span> <span class="number">0</span>
+            <span class="kw-2">&amp;</span><span class="op">&amp;</span> <span class="op">!</span><span class="self">self</span>
+                .<span class="ident">persistent_state</span>
+                .<span class="ident">log</span>
+                .<span class="ident">log_term_matches</span>(<span class="ident">req</span>.<span class="ident">prev_log_index</span>, <span class="ident">req</span>.<span class="ident">prev_log_term</span>)
         {
             <span class="kw">return</span> <span class="bool-val">false</span>;
         }
