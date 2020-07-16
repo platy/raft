@@ -1,0 +1,105 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/rpc.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>rpc.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../raft/index.html'><div class='logo-container'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1"> 1</span>
+<span id="2"> 2</span>
+<span id="3"> 3</span>
+<span id="4"> 4</span>
+<span id="5"> 5</span>
+<span id="6"> 6</span>
+<span id="7"> 7</span>
+<span id="8"> 8</span>
+<span id="9"> 9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="doccomment">//! Raft servers communicate using remote procedure calls(RPCs), and the basic consensus algorithm requires onlytwo types of RPCs. RequestVote RPCs are initiated bycandidates during elections (Section 5.2), and Append-Entries RPCs are initiated by leaders to replicate log en-tries and to provide a form of heartbeat (Section 5.3). Sec-tion 7 adds a third RPC for transferring snapshots betweenservers. Servers retry RPCs if they do not receive a re-sponse in a timely manner, and they issue RPCs in parallelfor best performance.</span>
+
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">log</span>::{<span class="ident">LogIndex</span>, <span class="ident">LogItem</span>};
+<span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">ServerId</span>, <span class="ident">Term</span>};
+<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+
+<span class="doccomment">/// Invoked by leader to replicate log entries (§5.3); also used asheartbeat (§5.2).</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AppendEntriesRequest</span><span class="op">&lt;</span><span class="ident">Command</span>, <span class="ident">LogEntries</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">LogItem</span><span class="op">&lt;</span><span class="ident">Command</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    <span class="doccomment">/// leader’s term</span>
+    <span class="kw">pub</span> <span class="ident">term</span>: <span class="ident">Term</span>,
+    <span class="doccomment">/// so follower can redirect clients</span>
+    <span class="kw">pub</span> <span class="ident">leader_id</span>: <span class="ident">ServerId</span>,
+    <span class="doccomment">/// index of log entry immediately precedingnew ones</span>
+    <span class="kw">pub</span> <span class="ident">prev_log_index</span>: <span class="ident">LogIndex</span>,
+    <span class="doccomment">/// term of prevLogIndex entry</span>
+    <span class="kw">pub</span> <span class="ident">prev_log_term</span>: <span class="ident">Term</span>,
+    <span class="doccomment">/// log entries to store (empty for heartbeat;may send more than one for efficiency)</span>
+    <span class="kw">pub</span> <span class="ident">entries</span>: <span class="ident">LogEntries</span>,
+    <span class="doccomment">/// leader’s commitIndex</span>
+    <span class="kw">pub</span> <span class="ident">leader_commit</span>: <span class="ident">LogIndex</span>,
+}
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AppendEntriesResponse</span> {
+    <span class="doccomment">/// currentTerm, for leader to update itself</span>
+    <span class="kw">pub</span> <span class="ident">term</span>: <span class="ident">Term</span>,
+    <span class="doccomment">/// true if follower contained entry matchingprevLogIndex and prevLogTerm</span>
+    <span class="kw">pub</span> <span class="ident">success</span>: <span class="ident">bool</span>,
+}
+
+<span class="doccomment">/// Invoked by candidates to gather votes (§5.2).</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RequestVoteRequest</span> {
+    <span class="doccomment">/// candidate’s term</span>
+    <span class="ident">term</span>: <span class="ident">Term</span>,
+    <span class="doccomment">/// candidate requesting vote</span>
+    <span class="ident">candidate_id</span>: <span class="ident">ServerId</span>,
+    <span class="doccomment">/// index of candidate’s last log entry (§5.4)</span>
+    <span class="ident">last_log_index</span>: <span class="ident">LogIndex</span>,
+    <span class="doccomment">/// term of candidate’s last log entry (§5.4)</span>
+    <span class="ident">last_log_term</span>: <span class="ident">Term</span>,
+}
+
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RequestVoteResponse</span> {
+    <span class="doccomment">/// currentTerm, for candidate to update itself</span>
+    <span class="ident">term</span>: <span class="ident">Term</span>,
+    <span class="doccomment">/// true means candidate received vote</span>
+    <span class="ident">vote_granted</span>: <span class="ident">bool</span>,
+}
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../";window.currentCrate = "raft";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>
