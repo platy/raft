@@ -1,32 +1,32 @@
 //! Raft servers communicate using remote procedure calls(RPCs), and the basic consensus algorithm requires onlytwo types of RPCs. RequestVote RPCs are initiated bycandidates during elections (Section 5.2), and Append-Entries RPCs are initiated by leaders to replicate log en-tries and to provide a form of heartbeat (Section 5.3). Sec-tion 7 adds a third RPC for transferring snapshots betweenservers. Servers retry RPCs if they do not receive a re-sponse in a timely manner, and they issue RPCs in parallelfor best performance.
 
-use super::log::LogIndex;
+use super::log::{LogIndex, LogItem};
 use super::{ServerId, Term};
 use serde::{Deserialize, Serialize};
 
 /// Invoked by leader to replicate log entries (§5.3); also used asheartbeat (§5.2).
 #[derive(Serialize, Deserialize)]
-pub struct AppendEntriesRequest<LogEntry, LogEntries: IntoIterator<Item = LogEntry>> {
+pub struct AppendEntriesRequest<Command, LogEntries: IntoIterator<Item = LogItem<Command>>> {
     /// leader’s term
-    term: Term,
+    pub term: Term,
     /// so follower can redirect clients
-    leader_id: ServerId,
+    pub leader_id: ServerId,
     /// index of log entry immediately precedingnew ones
-    prev_log_index: LogIndex,
+    pub prev_log_index: LogIndex,
     /// term of prevLogIndex entry
-    prev_log_term: Term,
+    pub prev_log_term: Term,
     /// log entries to store (empty for heartbeat;may send more than one for efficiency)
-    entries: LogEntries,
+    pub entries: LogEntries,
     /// leader’s commitIndex
-    leader_commit: LogIndex,
+    pub leader_commit: LogIndex,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct AppendEntriesResponse {
     /// currentTerm, for leader to update itself
-    term: Term,
+    pub term: Term,
     /// true if follower contained entry matchingprevLogIndex and prevLogTerm
-    success: bool,
+    pub success: bool,
 }
 
 /// Invoked by candidates to gather votes (§5.2).
