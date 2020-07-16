@@ -1,1 +1,1 @@
-initSidebarItems({"type":[["StateMachineReceiver",""]]});
+initSidebarItems({"type":[["Receiver",""]]});

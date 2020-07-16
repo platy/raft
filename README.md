@@ -3,6 +3,7 @@
 This is a (work in progress) implementation of the RAFT consensus algorithm in the rust language.
 
 See the [raft spec](https://raft.github.io/raft.pdf).
+
 See the [documentation](https://platy.github.io/raft/raft/).
 
 ## Progress
@@ -10,9 +11,9 @@ See the [documentation](https://platy.github.io/raft/raft/).
 - [x] in-memory state
 - [x] append entries RPC handling
 - [x] request vote RPC handling
-- [ ] persistent state operations async
 - [ ] rules for state changes, timers and making RPC calls
-- [ ] write to disk
+- [ ] handle client requests
 - [ ] cluster tests for scenarios
+- [ ] write to disk
 - [ ] serialise RPCs and run over networking
 - [ ] run as separate processes

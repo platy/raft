@@ -7,5 +7,6 @@ pub type Term = u32;
 
 pub mod log;
 pub mod rpc;
+pub mod server;
 pub mod state;
 pub mod state_machine;

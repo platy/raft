@@ -4,6 +4,10 @@ use super::log;
 use super::{ServerId, Term};
 use serde::{Deserialize, Serialize};
 
+pub trait RPCMessage {
+    fn term(&self) -> Term;
+}
+
 /// Invoked by leader to replicate log entries (§5.3); also used asheartbeat (§5.2).
 #[derive(Serialize, Deserialize)]
 pub struct AppendEntriesRequest<Command, LogEntries: IntoIterator<Item = log::Item<Command>>> {
@@ -48,4 +52,18 @@ pub struct RequestVoteResponse {
     pub term: Term,
     /// true means candidate received vote
     pub vote_granted: bool,
+}
+
+impl<Command, LogEntries: IntoIterator<Item = log::Item<Command>>> RPCMessage
+    for AppendEntriesRequest<Command, LogEntries>
+{
+    fn term(&self) -> Term {
+        self.term
+    }
+}
+
+impl RPCMessage for RequestVoteRequest {
+    fn term(&self) -> Term {
+        self.term
+    }
 }

@@ -1,1 +1,1 @@
-pub type StateMachineReceiver<Command> = dyn Fn(Command);
+pub type Receiver<Command> = dyn FnMut(&Command);

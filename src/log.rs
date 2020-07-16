@@ -44,7 +44,11 @@ pub trait Log {
 
     fn last_log_term(&self) -> Term;
     fn last_index(&self) -> Index;
+
+    fn get_command(&self, idx: Index) -> &Self::Command;
 }
+
+pub type InVec<T> = Vec<Item<T>>;
 
 impl<Command> Log for Vec<Item<Command>> {
     type Command = Command;
@@ -85,6 +89,10 @@ impl<Command> Log for Vec<Item<Command>> {
 
     fn last_index(&self) -> Index {
         self.len()
+    }
+
+    fn get_command(&self, idx: Index) -> &Command {
+        &self[idx - 1].command
     }
 }
 

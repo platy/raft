@@ -590,11 +590,41 @@
 <span id="590">590</span>
 <span id="591">591</span>
 <span id="592">592</span>
+<span id="593">593</span>
+<span id="594">594</span>
+<span id="595">595</span>
+<span id="596">596</span>
+<span id="597">597</span>
+<span id="598">598</span>
+<span id="599">599</span>
+<span id="600">600</span>
+<span id="601">601</span>
+<span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
+<span id="606">606</span>
+<span id="607">607</span>
+<span id="608">608</span>
+<span id="609">609</span>
+<span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
+<span id="620">620</span>
+<span id="621">621</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">log</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">rpc</span>::{
     <span class="ident">AppendEntriesRequest</span>, <span class="ident">AppendEntriesResponse</span>, <span class="ident">RequestVoteRequest</span>, <span class="ident">RequestVoteResponse</span>,
 };
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">state_machine</span>::<span class="ident">Receiver</span>;
 <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">ServerId</span>, <span class="ident">Term</span>};
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">cmp</span>::<span class="ident">Ordering</span>;
 
@@ -677,9 +707,17 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">Log</span>: <span class="ident">log</span>::<span class="ident">Log</span><span class="op">&gt;</span> <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Log</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">current_term</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Term</span> {
+        <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span>
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_current_term</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">term</span>: <span class="ident">Term</span>) {
+        <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">set_current_term</span>(<span class="ident">term</span>)
+    }
+
     <span class="doccomment">/// # Panics</span>
     <span class="doccomment">/// In case the term tries to decrease</span>
-    <span class="kw">fn</span> <span class="ident">set_commit_index</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">commit_index</span>: <span class="ident">log</span>::<span class="ident">Index</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_commit_index</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">commit_index</span>: <span class="ident">log</span>::<span class="ident">Index</span>) {
         <span class="macro">assert</span><span class="macro">!</span>(
             <span class="ident">commit_index</span> <span class="op">&gt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">commit_index</span>,
             <span class="string">&quot;Commit index must increase monotonically, tried to decrease from {} to {}&quot;</span>,
@@ -689,9 +727,13 @@
         <span class="self">self</span>.<span class="ident">commit_index</span> <span class="op">=</span> <span class="ident">commit_index</span>;
     }
 
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">last_applied</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">log</span>::<span class="ident">Index</span> {
+        <span class="self">self</span>.<span class="ident">last_applied</span>
+    }
+
     <span class="doccomment">/// # Panics</span>
     <span class="doccomment">/// In case the term tries to decrease</span>
-    <span class="kw">fn</span> <span class="ident">set_last_applied</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">last_applied</span>: <span class="ident">log</span>::<span class="ident">Index</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_last_applied</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">last_applied</span>: <span class="ident">log</span>::<span class="ident">Index</span>) {
         <span class="macro">assert</span><span class="macro">!</span>(
             <span class="ident">last_applied</span> <span class="op">&gt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">last_applied</span>,
             <span class="string">&quot;Last applied must increase monotonically, tried to decrease from {} to {}&quot;</span>,
@@ -760,6 +802,7 @@
                 .<span class="ident">cmp</span>(<span class="ident">req</span>.<span class="ident">last_log_index</span>, <span class="ident">req</span>.<span class="ident">last_log_term</span>)
                 <span class="op">!</span><span class="op">=</span> <span class="ident">Ordering</span>::<span class="ident">Greater</span>
         {
+            <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">voted_for</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">req</span>.<span class="ident">candidate_id</span>);
             <span class="bool-val">true</span>
         } <span class="kw">else</span> {
             <span class="bool-val">false</span>
@@ -768,6 +811,20 @@
             <span class="ident">vote_granted</span>,
             <span class="ident">term</span>: <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span>,
         }
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">apply_commited</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">receiver</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">Log</span>::<span class="ident">Command</span><span class="op">&gt;</span>) {
+        <span class="kw">while</span> <span class="self">self</span>.<span class="ident">commit_index</span> <span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">last_applied</span> {
+            <span class="self">self</span>.<span class="ident">last_applied</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
+            <span class="ident">receiver</span>(<span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">get_command</span>(<span class="self">self</span>.<span class="ident">last_applied</span>));
+        }
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">Log</span>: <span class="ident">log</span>::<span class="ident">Log</span><span class="op">&gt;</span> <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Log</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_log</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">log</span>: <span class="ident">Log</span>) {
+        <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span> <span class="op">=</span> <span class="ident">log</span>
     }
 }
 
@@ -801,9 +858,8 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">test_volatile_state</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">log</span>::<span class="ident">Item</span>;
 
-    <span class="kw">type</span> <span class="ident">TestServerState</span> <span class="op">=</span> <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>;
+    <span class="kw">type</span> <span class="ident">TestServerState</span> <span class="op">=</span> <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">log</span>::<span class="ident">InVec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">default</span>() {
@@ -876,12 +932,12 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">test_append_entries</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">ServerState</span>;
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">log</span>::<span class="ident">Item</span>;
+    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">log</span>::{<span class="self">self</span>, <span class="ident">Item</span>};
     <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">rpc</span>::<span class="ident">AppendEntriesRequest</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl1</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">log</span>::<span class="ident">InVec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
         <span class="kw">let</span> <span class="ident">req</span> <span class="op">=</span> <span class="ident">AppendEntriesRequest</span> {
             <span class="ident">term</span>: <span class="number">1</span>,
@@ -898,7 +954,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl2_no_entry</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">log</span>::<span class="ident">InVec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
         <span class="kw">let</span> <span class="ident">req</span> <span class="op">=</span> <span class="ident">AppendEntriesRequest</span> {
             <span class="ident">term</span>: <span class="number">2</span>,
@@ -915,7 +971,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl2_no_term_match</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">log</span>::<span class="ident">InVec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
         <span class="kw">let</span> <span class="ident">req</span> <span class="op">=</span> <span class="ident">AppendEntriesRequest</span> {
@@ -933,7 +989,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl3_first_doesnt_match</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">log</span>::<span class="ident">InVec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
@@ -957,7 +1013,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl3_second_doesnt_match</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">log</span>::<span class="ident">InVec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
@@ -982,7 +1038,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl3_4</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">log</span>::<span class="ident">InVec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
@@ -1019,7 +1075,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl4</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">log</span>::<span class="ident">InVec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="number">99</span>));
@@ -1052,7 +1108,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl5_leader_commit</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">log</span>::<span class="ident">InVec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
         <span class="ident">server</span>.<span class="ident">commit_index</span> <span class="op">=</span> <span class="number">1</span>;
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
@@ -1074,7 +1130,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl5_leader_commit_passes</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">log</span>::<span class="ident">InVec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
         <span class="ident">server</span>.<span class="ident">commit_index</span> <span class="op">=</span> <span class="number">1</span>;
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
@@ -1098,12 +1154,12 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">test_request_vote</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">ServerState</span>;
-    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">log</span>::<span class="ident">Item</span>;
+    <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">log</span>::{<span class="self">self</span>, <span class="ident">Item</span>};
     <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">rpc</span>::<span class="ident">RequestVoteRequest</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl1</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">log</span>::<span class="ident">InVec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">2</span>;
         <span class="kw">let</span> <span class="ident">req</span> <span class="op">=</span> <span class="ident">RequestVoteRequest</span> {
             <span class="ident">term</span>: <span class="number">1</span>,
@@ -1118,7 +1174,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl2_novote_log_same</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">log</span>::<span class="ident">InVec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">1</span>;
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">voted_for</span> <span class="op">=</span> <span class="prelude-val">None</span>;
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
@@ -1130,12 +1186,13 @@
         };
         <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">server</span>.<span class="ident">receive_request_vote</span>(<span class="ident">req</span>);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">res</span>.<span class="ident">vote_granted</span>, <span class="string">&quot;Receiver implementation 2 failed&quot;</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">voted_for</span>, <span class="prelude-val">Some</span>(<span class="number">0</span>));
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">res</span>.<span class="ident">term</span>, <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl2_voted_log_shorter</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">log</span>::<span class="ident">InVec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">1</span>;
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">voted_for</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="number">0</span>);
         <span class="kw">let</span> <span class="ident">req</span> <span class="op">=</span> <span class="ident">RequestVoteRequest</span> {
@@ -1146,12 +1203,13 @@
         };
         <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="ident">server</span>.<span class="ident">receive_request_vote</span>(<span class="ident">req</span>);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">res</span>.<span class="ident">vote_granted</span>, <span class="string">&quot;Receiver implementation 2 failed&quot;</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">voted_for</span>, <span class="prelude-val">Some</span>(<span class="number">0</span>));
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">res</span>.<span class="ident">term</span>, <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl2_votedother_log_same</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">log</span>::<span class="ident">InVec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">1</span>;
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">voted_for</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="number">1</span>);
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));
@@ -1168,7 +1226,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">impl2_novote_log_longer</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">server</span>: <span class="ident">ServerState</span><span class="op">&lt;</span><span class="ident">log</span>::<span class="ident">InVec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">ServerState</span>::<span class="ident">default</span>();
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span> <span class="op">=</span> <span class="number">1</span>;
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">voted_for</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="number">1</span>);
         <span class="ident">server</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">push</span>(<span class="ident">Item</span>::<span class="ident">new</span>(<span class="number">1</span>, <span class="number">99</span>));

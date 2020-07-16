@@ -49,12 +49,34 @@
 <span id="49">49</span>
 <span id="50">50</span>
 <span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Raft servers communicate using remote procedure calls(RPCs), and the basic consensus algorithm requires onlytwo types of RPCs. RequestVote RPCs are initiated bycandidates during elections (Section 5.2), and Append-Entries RPCs are initiated by leaders to replicate log en-tries and to provide a form of heartbeat (Section 5.3). Sec-tion 7 adds a third RPC for transferring snapshots betweenservers. Servers retry RPCs if they do not receive a re-sponse in a timely manner, and they issue RPCs in parallelfor best performance.</span>
 
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">log</span>;
 <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">ServerId</span>, <span class="ident">Term</span>};
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
+
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">RPCMessage</span> {
+    <span class="kw">fn</span> <span class="ident">term</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Term</span>;
+}
 
 <span class="doccomment">/// Invoked by leader to replicate log entries (§5.3); also used asheartbeat (§5.2).</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
@@ -100,6 +122,20 @@
     <span class="kw">pub</span> <span class="ident">term</span>: <span class="ident">Term</span>,
     <span class="doccomment">/// true means candidate received vote</span>
     <span class="kw">pub</span> <span class="ident">vote_granted</span>: <span class="ident">bool</span>,
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">Command</span>, <span class="ident">LogEntries</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">log</span>::<span class="ident">Item</span><span class="op">&lt;</span><span class="ident">Command</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="ident">RPCMessage</span>
+    <span class="kw">for</span> <span class="ident">AppendEntriesRequest</span><span class="op">&lt;</span><span class="ident">Command</span>, <span class="ident">LogEntries</span><span class="op">&gt;</span>
+{
+    <span class="kw">fn</span> <span class="ident">term</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Term</span> {
+        <span class="self">self</span>.<span class="ident">term</span>
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">RPCMessage</span> <span class="kw">for</span> <span class="ident">RequestVoteRequest</span> {
+    <span class="kw">fn</span> <span class="ident">term</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Term</span> {
+        <span class="self">self</span>.<span class="ident">term</span>
+    }
 }
 </pre></div>
 </section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../";window.currentCrate = "raft";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>
