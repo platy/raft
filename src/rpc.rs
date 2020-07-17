@@ -9,8 +9,9 @@ pub trait RPCMessage {
 }
 
 /// Invoked by leader to replicate log entries (§5.3); also used asheartbeat (§5.2).
-#[derive(Serialize, Deserialize)]
-pub struct AppendEntriesRequest<Command, LogEntries: IntoIterator<Item = log::Item<Command>>> {
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AppendEntriesRequest<Command: Clone, LogEntries: IntoIterator<Item = log::Item<Command>>>
+{
     /// leader’s term
     pub term: Term,
     /// so follower can redirect clients
@@ -54,7 +55,7 @@ pub struct RequestVoteResponse {
     pub vote_granted: bool,
 }
 
-impl<Command, LogEntries: IntoIterator<Item = log::Item<Command>>> RPCMessage
+impl<Command: Clone, LogEntries: IntoIterator<Item = log::Item<Command>>> RPCMessage
     for AppendEntriesRequest<Command, LogEntries>
 {
     fn term(&self) -> Term {

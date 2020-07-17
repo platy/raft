@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Server",""]]});
+initSidebarItems({"struct":[["Server","The logic of a raft server except for delay, timouts, messaging and configuration which are handled by the client"]]});

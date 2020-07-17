@@ -3,16 +3,22 @@ use super::rpc::*;
 use super::state::ServerState;
 use super::state_machine::Receiver;
 use super::ServerId;
+use super::Term;
 use core::iter;
 
-pub struct Server<Command, Log: log::Log<Command = Command>> {
+/// The logic of a raft server except for delay, timouts, messaging and configuration which are handled by the client
+pub struct Server<Command: Clone, Log: log::Log<Command = Command>> {
+    /// state and state logic of a raft server
     state: ServerState<Log>,
+    /// state machine receiver
     receiver: Box<Receiver<Command>>,
+    /// id of this server
     server_id: ServerId,
+    /// number of votes received in the current term
     votes_this_term: u8,
 }
 
-impl<Command: 'static, Log: log::Log<Command = Command> + Default> Server<Command, Log> {
+impl<Command: 'static + Clone, Log: log::Log<Command = Command> + Default> Server<Command, Log> {
     fn new(server_id: ServerId, state_machine: Box<Receiver<Command>>) -> Self {
         Self {
             state: Default::default(),
@@ -23,7 +29,7 @@ impl<Command: 'static, Log: log::Log<Command = Command> + Default> Server<Comman
     }
 }
 
-impl<Command: 'static, Log: log::Log<Command = Command>> Server<Command, Log> {
+impl<Command: 'static + Clone, Log: log::Log<Command = Command>> Server<Command, Log> {
     /// Prehandling of all RPC requests before the receiver logic
     fn pre_handle(&mut self, message: impl RPCMessage) {
         // If RPC request or response contains term T > currentTerm: set currentTerm = T, convert to follower (§5.1)
@@ -32,7 +38,7 @@ impl<Command: 'static, Log: log::Log<Command = Command>> Server<Command, Log> {
         }
     }
 
-    fn post_handle(&mut self) {
+    fn post_handle(&mut self) -> Vec<(log::Index, Term)> {
         self.state.apply_commited(&mut self.receiver)
     }
 
@@ -78,6 +84,11 @@ impl<Command: 'static, Log: log::Log<Command = Command>> Server<Command, Log> {
         self.state.receive_append_entries(req)
     }
 
+    /// Receives a RequestVote response
+    /// # Return
+    /// if the server determines it has won the election with the received vote, an `AppendEntriesRequest` heartbeat is
+    /// returned which the client needs to send to all other servers in the cluster. At this point the client ust also
+    /// start a heartbeat timer and start calling the heartbeat method on it
     pub fn receive_vote(
         &mut self,
         res: RequestVoteResponse,
@@ -106,6 +117,46 @@ impl<Command: 'static, Log: log::Log<Command = Command>> Server<Command, Log> {
         } else {
             None
         }
+    }
+
+    /// Receive response from AppendEntries
+    /// - If successful: update nextIndex and matchIndex for follower (§5.3)
+    /// - If AppendEntries fails because of log inconsistency:decrement nextIndex and retry (§5.3)
+    /// # Return
+    /// `Vec` of command pointers which have been newly applied, the client will need to send any client responses associated
+    /// with those commands
+    pub fn receive_append_entries_response(
+        &mut self,
+        from: ServerId,
+        match_index: log::Index,
+        res: AppendEntriesResponse,
+    ) -> Vec<(log::Index, Term)> {
+        // @todo also check for new term
+        if res.success {
+            self.state.update_follower(from, match_index);
+            self.post_handle()
+        } else {
+            self.state.follower_inconsistent(from);
+            vec![]
+        }
+    }
+
+    /// Client adds a command
+    /// # Return
+    /// Command pointer, the client can be informed of the successful application of the command once this command
+    /// pointer s returned by `receive_append_entries_response`
+    pub fn command(&mut self, command: Log::Command) -> (log::Index, Term) {
+        self.state.add_command(command)
+    }
+
+    /// Call this on a timer from when an election is won, until a `pre_handle` indicates that a new election has been called
+    pub fn heartbeat(
+        &mut self,
+    ) -> Vec<(
+        ServerId,
+        AppendEntriesRequest<Command, Vec<log::Item<Command>>>,
+    )> {
+        self.state.produce_append_entries(self.server_id)
     }
 }
 
@@ -152,6 +203,8 @@ mod all_server_rules {
         assert_eq!(s.state.current_term(), 5);
         assert!(s.state.is_follower());
     }
+
+    // @todo response updates term
 }
 
 /// # Followers (§5.2):
@@ -290,14 +343,121 @@ mod candidate_rules {
     }
 }
 
-// /// - If command received from client: append entry to local log, respond after entry applied to state machine (§5.3)
-// /// - If last log index ≥ nextIndex for a follower: send AppendEntries RPC with log entries starting at nextIndex
-// /// - If successful: update nextIndex and matchIndex for follower (§5.3)
-// /// - If AppendEntries fails because of log inconsistency: decrement nextIndex and retry (§5.3)
-// /// - If there exists an N such that N > commitIndex, a majority of matchIndex[i] ≥ N, and log[N].term == currentTerm: set commitIndex = N (§5.3, §5.4).
-// #[cfg(test)]
-// mod leader_rules {
-//     use super::*;
-//     use crate::rpc::AppendEntriesRequest;
+/// - If command received from client: append entry to local log, respond after entry applied to state machine (§5.3)
+/// - If last log index ≥ nextIndex for a follower: send AppendEntries RPC with log entries starting at nextIndex
+/// -- If successful: update nextIndex and matchIndex for follower (§5.3)
+/// -- If AppendEntries fails because of log inconsistency: decrement nextIndex and retry (§5.3)
+/// - If there exists an N such that N > commitIndex, a majority of matchIndex[i] ≥ N, and log[N].term == currentTerm: set commitIndex = N (§5.3, §5.4).
+#[cfg(test)]
+mod leader_rules {
+    use super::log::Log;
+    use super::*;
+    use std::rc::Rc;
+    use std::sync::atomic::{AtomicI32, Ordering};
 
-// }
+    #[test]
+    fn whole_handle_client_command() {
+        let acc = Rc::new(AtomicI32::new(0));
+        let acc2 = acc.clone();
+        let sm = move |&command: &i32| {
+            println!("SM received command {}", command);
+            acc2.fetch_add(command, Ordering::SeqCst);
+        };
+        let mut s: Server<i32, log::InVec<i32>> = Server::new(1, Box::new(sm));
+        s.state.set_current_term(1);
+        s.state.set_log(vec![log::Item::new(1, 10)]);
+        s.state.set_commit_index(1);
+        s.post_handle();
+        assert_eq!(s.state.current_term(), 1);
+        s.election_timeout();
+        assert!(s.state.is_candidate(), "become candidate");
+        assert_eq!(s.state.current_term(), 2, "Increment currentTerm");
+        s.receive_vote(
+            RequestVoteResponse {
+                term: 2,
+                vote_granted: true,
+            },
+            3,
+        );
+        assert!(s.state.is_leader(), "become leader");
+        let command_id = s.command(5); // the caller should call heartbeat when this returns to get the sync messages for the followers
+        assert_eq!(
+            *s.state.log().get_command(2),
+            5,
+            "If command received from client: append entry to local log"
+        );
+        assert_eq!(s.state.log().last_log_term(), 2);
+        assert_eq!(
+            command_id,
+            (2, 2),
+            "the index and term which when commited will activate the response"
+        );
+        assert_eq!(
+            acc.load(Ordering::SeqCst),
+            10,
+            "command should not yet be commited"
+        );
+        let heartbeat_reqs = s.heartbeat();
+        // - If last log index ≥ nextIndex for a follower: send AppendEntries RPC with log entries starting at nextIndex
+        assert_eq!(heartbeat_reqs.len(), 2);
+        assert_eq!(
+            heartbeat_reqs[0],
+            (
+                0,
+                AppendEntriesRequest {
+                    term: 2,
+                    leader_id: 1,
+                    prev_log_index: 1,
+                    prev_log_term: 1,
+                    leader_commit: 1,
+                    entries: vec![log::Item::new(2, 5)],
+                }
+            )
+        );
+        assert_eq!(
+            heartbeat_reqs[1],
+            (
+                2,
+                AppendEntriesRequest {
+                    term: 2,
+                    leader_id: 1,
+                    prev_log_index: 1,
+                    prev_log_term: 1,
+                    leader_commit: 1,
+                    entries: vec![log::Item::new(2, 5)],
+                }
+            )
+        );
+        // -- If successful: update nextIndex and matchIndex for follower (§5.3)
+        let new_commits1 = s.receive_append_entries_response(
+            0,
+            2,
+            AppendEntriesResponse {
+                success: true,
+                term: 2,
+            },
+        );
+        assert_eq!(s.state.get_leader_state().next_index[0], 3);
+        assert_eq!(s.state.get_leader_state().match_index[0], 2);
+        // -- If AppendEntries fails because of log inconsistency: decrement nextIndex and retry (§5.3)
+        let new_commits2 = s.receive_append_entries_response(
+            2,
+            2,
+            AppendEntriesResponse {
+                success: false,
+                term: 2,
+            },
+        );
+        assert_eq!(new_commits2.len(), 0);
+        assert_eq!(s.state.get_leader_state().next_index[2], 1);
+        assert_eq!(s.state.get_leader_state().match_index[2], 0);
+        // - If there exists an N such that N > commitIndex, a majority of matchIndex[i] ≥ N, and log[N].term == currentTerm: set commitIndex = N (§5.3, §5.4).
+        assert_eq!(s.state.commit_index(), 2);
+        assert_eq!(s.state.last_applied(), 2);
+        // respond after entry applied to state machine (§5.3)
+        // client is responsible for sending any client responses for the commited entries
+        assert_eq!(new_commits1.len(), 1);
+        assert_eq!(new_commits1[0], (2, 2));
+        assert_eq!(acc.load(Ordering::SeqCst), 15, "command should be commited");
+    }
+}

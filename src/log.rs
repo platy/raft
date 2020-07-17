@@ -3,19 +3,23 @@ use core::cmp::Ordering;
 
 pub type Index = usize;
 
-pub struct Item<Command> {
+#[derive(Eq, PartialEq, Debug, Clone)]
+pub struct Item<Command: Clone> {
     pub term: Term,
     pub command: Command,
 }
 
-impl<Command> Item<Command> {
+impl<Command: Clone> Item<Command> {
     pub fn new(term: Term, command: Command) -> Self {
         Self { term, command }
     }
 }
 
 pub trait Log {
-    type Command;
+    type Command: Clone;
+
+    /// Add a new command and return its index
+    fn append(&mut self, term: Term, command: Self::Command) -> Index;
 
     /// Check items against existing items in log, remove from log any conflicting items and those following them and append the remaining new items.
     /// # Returns
@@ -42,16 +46,31 @@ pub trait Log {
             .then(own_last_log_index.cmp(&other_last_log_index))
     }
 
+    /// Term of the last log item
     fn last_log_term(&self) -> Term;
+
+    /// Index of the last log item
     fn last_log_index(&self) -> Index;
 
+    /// Command at index
     fn get_command(&self, idx: Index) -> &Self::Command;
+
+    /// Term at index
+    fn get_term(&self, idx: Index) -> Term;
+
+    /// All items following and including the index
+    fn get_from(&self, idx: Index) -> Vec<Item<Self::Command>>;
 }
 
 pub type InVec<T> = Vec<Item<T>>;
 
-impl<Command> Log for Vec<Item<Command>> {
+impl<Command: Clone> Log for Vec<Item<Command>> {
     type Command = Command;
+
+    fn append(&mut self, term: Term, command: Self::Command) -> Index {
+        self.push(Item::new(term, command));
+        self.len()
+    }
 
     fn truncate_if_different_and_append(
         &mut self,
@@ -93,6 +112,14 @@ impl<Command> Log for Vec<Item<Command>> {
 
     fn get_command(&self, idx: Index) -> &Command {
         &self[idx - 1].command
+    }
+
+    fn get_term(&self, idx: Index) -> Term {
+        self[idx - 1].term
+    }
+
+    fn get_from(&self, idx: Index) -> Vec<Item<Self::Command>> {
+        self.iter().skip(idx - 1).cloned().collect()
     }
 }
 

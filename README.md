@@ -11,8 +11,8 @@ See the [documentation](https://platy.github.io/raft/raft/).
 - [x] in-memory state
 - [x] append entries RPC handling
 - [x] request vote RPC handling
-- [ ] rules for state changes, timers and making RPC calls
-- [ ] handle client requests
+- [x] rules for state changes, timers and making RPC calls
+- [x] handle client requests
 - [ ] cluster tests for scenarios
 - [ ] write to disk
 - [ ] serialise RPCs and run over networking

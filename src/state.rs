@@ -31,8 +31,8 @@ impl<Log> Persistent<Log> {
 
 #[derive(Debug, PartialEq)]
 pub struct Leader {
-    next_index: Vec<log::Index>,
-    match_index: Vec<log::Index>,
+    pub next_index: Vec<log::Index>,
+    pub match_index: Vec<log::Index>,
 }
 
 impl Leader {
@@ -57,6 +57,14 @@ impl Leader {
             match_index
         );
         self.match_index[server as usize] = match_index;
+    }
+
+    /// Which index in the log is match by the majority of the logs in the cluster
+    fn majority_match(&self) -> log::Index {
+        let mut idxs = self.match_index.clone();
+        idxs.sort();
+        let majority_idx = (idxs.len() + 1) / 2 - 1;
+        idxs[majority_idx]
     }
 }
 
@@ -113,12 +121,13 @@ impl<Log: log::Log> ServerState<Log> {
         }
     }
 
+    /// Another server is acknowledged as leader
     pub fn follow_new_term(&mut self, term: Term) {
         self.persistent_state.set_current_term(term);
         self.state = States::Follower;
     }
 
-    /// No messages have been received over the election timeout.
+    /// No messages have been received over the election timeout. Start a new election term
     /// # Followers (§5.2):
     /// -- If election timeout elapses without receiving AppendEntriesRPC from current leader or granting vote to candidate: convert to candidate
     /// # Candidates (§5.2):
@@ -144,6 +153,7 @@ impl<Log: log::Log> ServerState<Log> {
         }
     }
 
+    /// Win an election and become a leader
     pub fn become_leader(&mut self, num_servers: ServerId) {
         self.state = States::Leader(Leader::new(
             num_servers,
@@ -167,6 +177,19 @@ impl<Log: log::Log> ServerState<Log> {
         self.last_applied
     }
 
+    /// Add a command from a client to this leader
+    pub fn add_command(&mut self, command: Log::Command) -> (log::Index, Term) {
+        let term = self.persistent_state.current_term;
+        let index = self.persistent_state.log.append(term, command);
+        let own_id = self.persistent_state.voted_for.expect("in order to add a command, the server must be a leader and therefore must have voted for itself this term");
+        if let States::Leader(leader) = &mut self.state {
+            leader.match_index[own_id as usize] = index;
+        } else {
+            panic!("must be leader")
+        }
+        (index, term)
+    }
+
     /// # Panics
     /// In case the term tries to decrease
     pub fn set_last_applied(&mut self, last_applied: log::Index) {
@@ -177,6 +200,88 @@ impl<Log: log::Log> ServerState<Log> {
             last_applied
         );
         self.last_applied = last_applied;
+    }
+
+    /// Prepare heartbeat / log updates for followers
+    /// #Panics
+    /// if not a leader
+    pub fn produce_append_entries(
+        &mut self,
+        leader_id: ServerId,
+    ) -> Vec<(
+        ServerId,
+        AppendEntriesRequest<Log::Command, Vec<log::Item<Log::Command>>>,
+    )> {
+        if let States::Leader(Leader {
+            next_index,
+            match_index: _,
+        }) = &self.state
+        {
+            let iter = next_index.iter().enumerate();
+            iter.filter_map(|(server_id, &next_index)| {
+                if server_id == leader_id as usize {
+                    None
+                } else {
+                    Some((
+                        server_id as u8,
+                        AppendEntriesRequest {
+                            term: self.current_term(),
+                            leader_id,
+                            prev_log_index: next_index - 1,
+                            prev_log_term: self.persistent_state.log.get_term(next_index - 1),
+                            entries: self.persistent_state.log.get_from(next_index),
+                            leader_commit: self.commit_index,
+                        },
+                    ))
+                }
+            })
+            .collect()
+        } else {
+            panic!("Heartbeat on non-leader")
+        }
+    }
+
+    /// If there exists an N such that N > commitIndex, a majority of matchIndex[i] ≥ N, and log[N].term == currentTerm: set commitIndex = N (§5.3, §5.4).
+    fn update_commit(&mut self, majority_match: log::Index) {
+        for n in (self.commit_index + 1)..=majority_match {
+            let log_n_term = self.persistent_state.log.get_term(n);
+            if log_n_term == self.current_term() {
+                self.set_commit_index(n);
+            }
+        }
+    }
+
+    /// A follower has successfully appended
+    /// If successful: update nextIndex and matchIndex forfollower (§5.3)
+    pub fn update_follower(&mut self, from: ServerId, match_idx: log::Index) {
+        if let States::Leader(leader) = &mut self.state {
+            let Leader {
+                next_index,
+                match_index,
+            } = leader;
+            let from = from as usize;
+            next_index[from] = match_idx + 1;
+            match_index[from] = match_idx;
+            let majority_match_idx = leader.majority_match();
+            self.update_commit(majority_match_idx)
+        } else {
+            panic!("Heartbeat on non-leader")
+        }
+    }
+
+    /// A followers response indicates that they are inconsistent with the leader
+    /// If AppendEntries fails because of log inconsistency: decrement nextIndex and retry (§5.3)
+    pub fn follower_inconsistent(&mut self, from: ServerId) {
+        if let States::Leader(Leader {
+            next_index,
+            match_index: _,
+        }) = &mut self.state
+        {
+            let from = from as usize;
+            next_index[from] -= 1;
+        } else {
+            panic!("Heartbeat on non-leader")
+        }
     }
 
     /// Invoked by leader to replicate log entries (§5.3); also used as heartbeat (§5.2).
@@ -225,6 +330,9 @@ impl<Log: log::Log> ServerState<Log> {
         true
     }
 
+    /// Requested to vote for candidate
+    /// 1.  Reply false if term < currentTerm (§5.1)
+    /// 2.  If votedFor is null or candidateId, and candidate’s log is at least as up-to-date as receiver’s log, grant vote (§5.2, §5.4)
     pub fn receive_request_vote(&mut self, req: RequestVoteRequest) -> RequestVoteResponse {
         // 1.  Reply false if term < currentTerm (§5.1)
         let vote_granted = if req.term < self.persistent_state.current_term {
@@ -250,11 +358,20 @@ impl<Log: log::Log> ServerState<Log> {
         }
     }
 
-    pub fn apply_commited(&mut self, receiver: &mut Receiver<Log::Command>) {
+    /// Apply all commited log items, return command pointers to those commands newly applied
+    pub fn apply_commited(
+        &mut self,
+        receiver: &mut Receiver<Log::Command>,
+    ) -> Vec<(log::Index, Term)> {
+        let mut applied = vec![];
         while self.commit_index > self.last_applied {
             self.last_applied += 1;
-            receiver(self.persistent_state.log.get_command(self.last_applied));
+            let command = self.persistent_state.log.get_command(self.last_applied);
+            receiver(command);
+            let term = self.persistent_state.log.get_term(self.last_applied);
+            applied.push((self.last_applied, term));
         }
+        applied
     }
 }
 
@@ -262,6 +379,22 @@ impl<Log: log::Log> ServerState<Log> {
 impl<Log: log::Log> ServerState<Log> {
     pub fn set_log(&mut self, log: Log) {
         self.persistent_state.log = log
+    }
+
+    pub fn log(&self) -> &Log {
+        &self.persistent_state.log
+    }
+
+    pub fn set_current_term(&mut self, term: Term) {
+        self.persistent_state.current_term = term;
+    }
+
+    pub fn get_leader_state(&self) -> &Leader {
+        if let States::Leader(leader) = &self.state {
+            leader
+        } else {
+            panic!("Not leader")
+        }
     }
 }
 
@@ -363,6 +496,23 @@ mod test_leader_state {
         let mut leader_state = Leader::new(2, 4);
         leader_state.set_match_index(0, 2);
         leader_state.set_match_index(0, 1);
+    }
+
+    #[test]
+    fn majority_match() {
+        fn mm(v: Vec<log::Index>) -> log::Index {
+            let leader = Leader {
+                match_index: v,
+                next_index: vec![], // not needed for this test
+            };
+            leader.majority_match()
+        }
+        assert_eq!(mm(vec![3, 3, 3]), 3);
+        assert_eq!(mm(vec![1, 2, 3]), 2);
+        assert_eq!(mm(vec![3, 2, 1]), 2);
+        assert_eq!(mm(vec![1, 1, 3]), 1);
+        assert_eq!(mm(vec![1, 3, 3]), 3);
+        assert_eq!(mm(vec![1, 2, 3, 4]), 2);
     }
 }
 
