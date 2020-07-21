@@ -4,7 +4,7 @@ This is a (work in progress) implementation of the RAFT consensus algorithm in t
 
 See the [raft spec](https://raft.github.io/raft.pdf).
 
-See the [documentation](https://platy.github.io/raft/raft/).
+See the [documentation](https://platy.github.io/raft/api/raft/).
 
 ## Progress
 
