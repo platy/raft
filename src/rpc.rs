@@ -9,7 +9,7 @@ pub trait RPCMessage {
 }
 
 /// Invoked by leader to replicate log entries (§5.3); also used asheartbeat (§5.2).
-#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AppendEntriesRequest<Command: Clone, LogEntries: IntoIterator<Item = log::Item<Command>>>
 {
     /// leader’s term
@@ -35,7 +35,7 @@ pub struct AppendEntriesResponse {
 }
 
 /// Invoked by candidates to gather votes (§5.2).
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct RequestVoteRequest {
     /// candidate’s term
     pub term: Term,

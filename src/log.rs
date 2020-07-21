@@ -56,7 +56,7 @@ pub trait Log {
     fn get_command(&self, idx: Index) -> &Self::Command;
 
     /// Term at index
-    fn get_term(&self, idx: Index) -> Term;
+    fn get_term(&self, idx: Index) -> Option<Term>;
 
     /// All items following and including the index
     fn get_from(&self, idx: Index) -> Vec<Item<Self::Command>>;
@@ -114,8 +114,12 @@ impl<Command: Clone> Log for Vec<Item<Command>> {
         &self[idx - 1].command
     }
 
-    fn get_term(&self, idx: Index) -> Term {
-        self[idx - 1].term
+    fn get_term(&self, idx: Index) -> Option<Term> {
+        if idx == 0 || idx > self.last_log_index() {
+            None
+        } else {
+            Some(self[idx - 1].term)
+        }
     }
 
     fn get_from(&self, idx: Index) -> Vec<Item<Self::Command>> {

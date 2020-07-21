@@ -80,7 +80,7 @@
 }
 
 <span class="doccomment">/// Invoked by leader to replicate log entries (§5.3); also used asheartbeat (§5.2).</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AppendEntriesRequest</span><span class="op">&lt;</span><span class="ident">Command</span>: <span class="ident">Clone</span>, <span class="ident">LogEntries</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">log</span>::<span class="ident">Item</span><span class="op">&lt;</span><span class="ident">Command</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>
 {
     <span class="doccomment">/// leader’s term</span>
@@ -106,7 +106,7 @@
 }
 
 <span class="doccomment">/// Invoked by candidates to gather votes (§5.2).</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RequestVoteRequest</span> {
     <span class="doccomment">/// candidate’s term</span>
     <span class="kw">pub</span> <span class="ident">term</span>: <span class="ident">Term</span>,

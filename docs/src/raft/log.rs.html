@@ -237,6 +237,10 @@
 <span id="237">237</span>
 <span id="238">238</span>
 <span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">Term</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">cmp</span>::<span class="ident">Ordering</span>;
@@ -296,7 +300,7 @@
     <span class="kw">fn</span> <span class="ident">get_command</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">idx</span>: <span class="ident">Index</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">Self</span>::<span class="ident">Command</span>;
 
     <span class="doccomment">/// Term at index</span>
-    <span class="kw">fn</span> <span class="ident">get_term</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">idx</span>: <span class="ident">Index</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Term</span>;
+    <span class="kw">fn</span> <span class="ident">get_term</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">idx</span>: <span class="ident">Index</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Term</span><span class="op">&gt;</span>;
 
     <span class="doccomment">/// All items following and including the index</span>
     <span class="kw">fn</span> <span class="ident">get_from</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">idx</span>: <span class="ident">Index</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Command</span><span class="op">&gt;</span><span class="op">&gt;</span>;
@@ -354,8 +358,12 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>[<span class="ident">idx</span> <span class="op">-</span> <span class="number">1</span>].<span class="ident">command</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">get_term</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">idx</span>: <span class="ident">Index</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Term</span> {
-        <span class="self">self</span>[<span class="ident">idx</span> <span class="op">-</span> <span class="number">1</span>].<span class="ident">term</span>
+    <span class="kw">fn</span> <span class="ident">get_term</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">idx</span>: <span class="ident">Index</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Term</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="ident">idx</span> <span class="op">=</span><span class="op">=</span> <span class="number">0</span> <span class="op">|</span><span class="op">|</span> <span class="ident">idx</span> <span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">last_log_index</span>() {
+            <span class="prelude-val">None</span>
+        } <span class="kw">else</span> {
+            <span class="prelude-val">Some</span>(<span class="self">self</span>[<span class="ident">idx</span> <span class="op">-</span> <span class="number">1</span>].<span class="ident">term</span>)
+        }
     }
 
     <span class="kw">fn</span> <span class="ident">get_from</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">idx</span>: <span class="ident">Index</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Command</span><span class="op">&gt;</span><span class="op">&gt;</span> {

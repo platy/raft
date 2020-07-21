@@ -228,7 +228,7 @@ impl<Log: log::Log> ServerState<Log> {
                             term: self.current_term(),
                             leader_id,
                             prev_log_index: next_index - 1,
-                            prev_log_term: self.persistent_state.log.get_term(next_index - 1),
+                            prev_log_term: self.persistent_state.log.get_term(next_index - 1).unwrap_or(0),
                             entries: self.persistent_state.log.get_from(next_index),
                             leader_commit: self.commit_index,
                         },
@@ -244,7 +244,7 @@ impl<Log: log::Log> ServerState<Log> {
     /// If there exists an N such that N > commitIndex, a majority of matchIndex[i] ≥ N, and log[N].term == currentTerm: set commitIndex = N (§5.3, §5.4).
     fn update_commit(&mut self, majority_match: log::Index) {
         for n in (self.commit_index + 1)..=majority_match {
-            let log_n_term = self.persistent_state.log.get_term(n);
+            let log_n_term = self.persistent_state.log.get_term(n).expect("should be iterating over existing logs");
             if log_n_term == self.current_term() {
                 self.set_commit_index(n);
             }
@@ -368,7 +368,7 @@ impl<Log: log::Log> ServerState<Log> {
             self.last_applied += 1;
             let command = self.persistent_state.log.get_command(self.last_applied);
             receiver(command);
-            let term = self.persistent_state.log.get_term(self.last_applied);
+            let term = self.persistent_state.log.get_term(self.last_applied).expect("applied command to exist");
             applied.push((self.last_applied, term));
         }
         applied

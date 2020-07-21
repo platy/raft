@@ -461,6 +461,15 @@
 <span id="461">461</span>
 <span id="462">462</span>
 <span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">log</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">rpc</span>::<span class="kw-2">*</span>;
@@ -483,7 +492,7 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">Command</span>: <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">Clone</span>, <span class="ident">Log</span>: <span class="ident">log</span>::<span class="ident">Log</span><span class="op">&lt;</span><span class="ident">Command</span> <span class="op">=</span> <span class="ident">Command</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Default</span><span class="op">&gt;</span> <span class="ident">Server</span><span class="op">&lt;</span><span class="ident">Command</span>, <span class="ident">Log</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">server_id</span>: <span class="ident">ServerId</span>, <span class="ident">state_machine</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">Command</span><span class="op">&gt;</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">server_id</span>: <span class="ident">ServerId</span>, <span class="ident">state_machine</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">Command</span><span class="op">&gt;</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">state</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
             <span class="ident">receiver</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">state_machine</span>),
@@ -495,7 +504,7 @@
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">Command</span>: <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">Clone</span>, <span class="ident">Log</span>: <span class="ident">log</span>::<span class="ident">Log</span><span class="op">&lt;</span><span class="ident">Command</span> <span class="op">=</span> <span class="ident">Command</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="ident">Server</span><span class="op">&lt;</span><span class="ident">Command</span>, <span class="ident">Log</span><span class="op">&gt;</span> {
     <span class="doccomment">/// Prehandling of all RPC requests before the receiver logic</span>
-    <span class="kw">fn</span> <span class="ident">pre_handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="kw">impl</span> <span class="ident">RPCMessage</span>) {
+    <span class="kw">fn</span> <span class="ident">pre_handle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">message</span>: <span class="kw-2">&amp;</span><span class="kw">impl</span> <span class="ident">RPCMessage</span>) {
         <span class="comment">// If RPC request or response contains term T &gt; currentTerm: set currentTerm = T, convert to follower (§5.1)</span>
         <span class="kw">if</span> <span class="ident">message</span>.<span class="ident">term</span>() <span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">current_term</span>() {
             <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">follow_new_term</span>(<span class="ident">message</span>.<span class="ident">term</span>());
@@ -517,7 +526,7 @@
     <span class="doccomment">/// -- Send RequestVote RPCs to all other servers</span>
     <span class="doccomment">/// ...</span>
     <span class="doccomment">/// -- If election timeout elapses: start new election</span>
-    <span class="kw">fn</span> <span class="ident">election_timeout</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RequestVoteRequest</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">election_timeout</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RequestVoteRequest</span> {
         <span class="macro">assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">state</span>.<span class="ident">is_follower</span>() <span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">is_candidate</span>());
         <span class="self">self</span>.<span class="ident">votes_this_term</span> <span class="op">=</span> <span class="number">1</span>;
         <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">start_election</span>(<span class="self">self</span>.<span class="ident">server_id</span>)
@@ -545,7 +554,14 @@
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">is_candidate</span>() <span class="kw-2">&amp;</span><span class="op">&amp;</span> <span class="ident">req</span>.<span class="ident">term</span> <span class="op">&gt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">current_term</span>() {
             <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">follow_new_term</span>(<span class="ident">req</span>.<span class="ident">term</span>);
         }
-        <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">receive_append_entries</span>(<span class="ident">req</span>)
+        <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">receive_append_entries</span>(<span class="ident">req</span>);
+        <span class="self">self</span>.<span class="ident">post_handle</span>();
+        <span class="ident">res</span>
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">receive_request_vote</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">req</span>: <span class="ident">RequestVoteRequest</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RequestVoteResponse</span> {
+        <span class="self">self</span>.<span class="ident">pre_handle</span>(<span class="kw-2">&amp;</span><span class="ident">req</span>);
+        <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">receive_request_vote</span>(<span class="ident">req</span>)
     }
 
     <span class="doccomment">/// Receives a RequestVote response</span>
@@ -586,6 +602,8 @@
     <span class="doccomment">/// Receive response from AppendEntries</span>
     <span class="doccomment">/// - If successful: update nextIndex and matchIndex for follower (§5.3)</span>
     <span class="doccomment">/// - If AppendEntries fails because of log inconsistency:decrement nextIndex and retry (§5.3)</span>
+    <span class="doccomment">/// # Args</span>
+    <span class="doccomment">/// Requires the id of the server responding the the append entries request, and the `match_index` which is the index of the last log entry sent in the request.</span>
     <span class="doccomment">/// # Return</span>
     <span class="doccomment">/// `Vec` of command pointers which have been newly applied, the client will need to send any client responses associated</span>
     <span class="doccomment">/// with those commands</span>
@@ -658,7 +676,7 @@
         <span class="comment">// make into a candidate for test</span>
         <span class="ident">s</span>.<span class="ident">election_timeout</span>();
         <span class="comment">// then receive message from another candidate or leader</span>
-        <span class="ident">s</span>.<span class="ident">pre_handle</span>(<span class="ident">RequestVoteRequest</span> {
+        <span class="ident">s</span>.<span class="ident">pre_handle</span>(<span class="kw-2">&amp;</span><span class="ident">RequestVoteRequest</span> {
             <span class="ident">term</span>: <span class="number">5</span>,
             <span class="ident">candidate_id</span>: <span class="number">0</span>,
             <span class="ident">last_log_term</span>: <span class="number">1</span>,

@@ -19,7 +19,7 @@ pub struct Server<Command: Clone, Log: log::Log<Command = Command>> {
 }
 
 impl<Command: 'static + Clone, Log: log::Log<Command = Command> + Default> Server<Command, Log> {
-    fn new(server_id: ServerId, state_machine: Box<Receiver<Command>>) -> Self {
+    pub fn new(server_id: ServerId, state_machine: Box<Receiver<Command>>) -> Self {
         Self {
             state: Default::default(),
             receiver: Box::new(state_machine),
@@ -31,7 +31,7 @@ impl<Command: 'static + Clone, Log: log::Log<Command = Command> + Default> Serve
 
 impl<Command: 'static + Clone, Log: log::Log<Command = Command>> Server<Command, Log> {
     /// Prehandling of all RPC requests before the receiver logic
-    fn pre_handle(&mut self, message: impl RPCMessage) {
+    fn pre_handle(&mut self, message: &impl RPCMessage) {
         // If RPC request or response contains term T > currentTerm: set currentTerm = T, convert to follower (§5.1)
         if message.term() > self.state.current_term() {
             self.state.follow_new_term(message.term());
@@ -53,7 +53,7 @@ impl<Command: 'static + Clone, Log: log::Log<Command = Command>> Server<Command,
     /// -- Send RequestVote RPCs to all other servers
     /// ...
     /// -- If election timeout elapses: start new election
-    fn election_timeout(&mut self) -> RequestVoteRequest {
+    pub fn election_timeout(&mut self) -> RequestVoteRequest {
         assert!(self.state.is_follower() || self.state.is_candidate());
         self.votes_this_term = 1;
         self.state.start_election(self.server_id)
@@ -81,7 +81,14 @@ impl<Command: 'static + Clone, Log: log::Log<Command = Command>> Server<Command,
         if self.state.is_candidate() && req.term >= self.state.current_term() {
             self.state.follow_new_term(req.term);
         }
-        self.state.receive_append_entries(req)
+        let res = self.state.receive_append_entries(req);
+        self.post_handle();
+        res
+    }
+
+    pub fn receive_request_vote(&mut self, req: RequestVoteRequest) -> RequestVoteResponse {
+        self.pre_handle(&req);
+        self.state.receive_request_vote(req)
     }
 
     /// Receives a RequestVote response
@@ -122,6 +129,8 @@ impl<Command: 'static + Clone, Log: log::Log<Command = Command>> Server<Command,
     /// Receive response from AppendEntries
     /// - If successful: update nextIndex and matchIndex for follower (§5.3)
     /// - If AppendEntries fails because of log inconsistency:decrement nextIndex and retry (§5.3)
+    /// # Args
+    /// Requires the id of the server responding the the append entries request, and the `match_index` which is the index of the last log entry sent in the request.
     /// # Return
     /// `Vec` of command pointers which have been newly applied, the client will need to send any client responses associated
     /// with those commands
@@ -194,7 +203,7 @@ mod all_server_rules {
         // make into a candidate for test
         s.election_timeout();
         // then receive message from another candidate or leader
-        s.pre_handle(RequestVoteRequest {
+        s.pre_handle(&RequestVoteRequest {
             term: 5,
             candidate_id: 0,
             last_log_term: 1,
