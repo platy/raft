@@ -1,4 +1,4 @@
-//! Raft servers communicate using remote procedure calls(RPCs), and the basic consensus algorithm requires onlytwo types of RPCs. RequestVote RPCs are initiated bycandidates during elections (Section 5.2), and Append-Entries RPCs are initiated by leaders to replicate log en-tries and to provide a form of heartbeat (Section 5.3). Sec-tion 7 adds a third RPC for transferring snapshots betweenservers. Servers retry RPCs if they do not receive a re-sponse in a timely manner, and they issue RPCs in parallelfor best performance.
+//! Raft servers communicate using remote procedure calls(RPCs), and the basic consensus algorithm requires only two types of RPCs. `RequestVote` RPCs are initiated bycandidates during elections (Section 5.2), and Append-Entries RPCs are initiated by leaders to replicate log en-tries and to provide a form of heartbeat (Section 5.3). Sec-tion 7 adds a third RPC for transferring snapshots betweenservers. Servers retry RPCs if they do not receive a re-sponse in a timely manner, and they issue RPCs in parallelfor best performance.
 
 use super::log;
 use super::{ServerId, Term};
@@ -35,7 +35,7 @@ pub struct AppendEntriesResponse {
 }
 
 /// Invoked by candidates to gather votes (§5.2).
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct RequestVoteRequest {
     /// candidate’s term
     pub term: Term,
@@ -47,7 +47,7 @@ pub struct RequestVoteRequest {
     pub last_log_term: Term,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct RequestVoteResponse {
     /// currentTerm, for candidate to update itself
     pub term: Term,

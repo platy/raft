@@ -17,7 +17,7 @@
 <h1 id="returns" class="section-header"><a href="#returns">Returns</a></h1>
 <p>Index of the last new item added
 #Panics
-If prev_index doesn't point at an existing log entry</p>
+If <code>prev_index</code> doesn't point at an existing log entry</p>
 </div><h3 id='tymethod.log_term_matches' class='method'><code id='log_term_matches.v'>fn <a href='#tymethod.log_term_matches' class='fnname'>log_term_matches</a>(&amp;self, index: <a class="type" href="../../raft/log/type.Index.html" title="type raft::log::Index">Index</a>, term: <a class="type" href="../../raft/type.Term.html" title="type raft::Term">Term</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></code></h3><div class='docblock'><p>Check whether the log entry's term at the specified index matches</p>
 </div><h3 id='tymethod.last_log_term' class='method'><code id='last_log_term.v'>fn <a href='#tymethod.last_log_term' class='fnname'>last_log_term</a>(&amp;self) -&gt; <a class="type" href="../../raft/type.Term.html" title="type raft::Term">Term</a></code></h3><div class='docblock'><p>Term of the last log item</p>
 </div><h3 id='tymethod.last_log_index' class='method'><code id='last_log_index.v'>fn <a href='#tymethod.last_log_index' class='fnname'>last_log_index</a>(&amp;self) -&gt; <a class="type" href="../../raft/log/type.Index.html" title="type raft::log::Index">Index</a></code></h3><div class='docblock'><p>Index of the last log item</p>

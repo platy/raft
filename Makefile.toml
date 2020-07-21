@@ -1,0 +1,8 @@
+[tasks.pre-commit]
+dependencies = [
+  "test", 
+  "format",
+  "clippy",
+  "clean-apidocs",
+  "docs-flow",
+]

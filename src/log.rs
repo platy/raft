@@ -25,7 +25,7 @@ pub trait Log {
     /// # Returns
     /// Index of the last new item added
     /// #Panics
-    /// If prev_index doesn't point at an existing log entry
+    /// If `prev_index` doesn't point at an existing log entry
     fn truncate_if_different_and_append(
         &mut self,
         prev_index: Index,

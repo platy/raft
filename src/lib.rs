@@ -1,4 +1,3 @@
-#![deny(clippy::pedantic)]
 #![allow(dead_code)]
 
 pub type ServerId = u8;

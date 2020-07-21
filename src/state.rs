@@ -5,6 +5,7 @@ use super::rpc::{
 use super::state_machine::Receiver;
 use super::{ServerId, Term};
 use core::cmp::Ordering;
+use core::convert::TryInto;
 
 /// Persistent state on all servers:(Updated on stable storage before responding to RPCs)
 // @todo operations here need to be persisted to disk and therefore async
@@ -129,13 +130,13 @@ impl<Log: log::Log> ServerState<Log> {
 
     /// No messages have been received over the election timeout. Start a new election term
     /// # Followers (§5.2):
-    /// -- If election timeout elapses without receiving AppendEntriesRPC from current leader or granting vote to candidate: convert to candidate
+    /// -- If election timeout elapses without receiving `AppendEntriesRPC` from current leader or granting vote to candidate: convert to candidate
     /// # Candidates (§5.2):
     /// - On conversion to candidate, start election:
     /// -- Increment currentTerm
     /// -- Vote for self
     /// -- Reset election timer (to be handled by caller)
-    /// -- Send RequestVote RPCs to all other servers
+    /// -- Send `RequestVote` RPCs to all other servers
     pub fn start_election(&mut self, server_id: ServerId) -> RequestVoteRequest {
         // convert to candidate
         self.state = States::Candidate;
@@ -223,12 +224,16 @@ impl<Log: log::Log> ServerState<Log> {
                     None
                 } else {
                     Some((
-                        server_id as u8,
+                        server_id.try_into().expect("too many servers"),
                         AppendEntriesRequest {
                             term: self.current_term(),
                             leader_id,
                             prev_log_index: next_index - 1,
-                            prev_log_term: self.persistent_state.log.get_term(next_index - 1).unwrap_or(0),
+                            prev_log_term: self
+                                .persistent_state
+                                .log
+                                .get_term(next_index - 1)
+                                .unwrap_or(0),
                             entries: self.persistent_state.log.get_from(next_index),
                             leader_commit: self.commit_index,
                         },
@@ -244,7 +249,11 @@ impl<Log: log::Log> ServerState<Log> {
     /// If there exists an N such that N > commitIndex, a majority of matchIndex[i] ≥ N, and log[N].term == currentTerm: set commitIndex = N (§5.3, §5.4).
     fn update_commit(&mut self, majority_match: log::Index) {
         for n in (self.commit_index + 1)..=majority_match {
-            let log_n_term = self.persistent_state.log.get_term(n).expect("should be iterating over existing logs");
+            let log_n_term = self
+                .persistent_state
+                .log
+                .get_term(n)
+                .expect("should be iterating over existing logs");
             if log_n_term == self.current_term() {
                 self.set_commit_index(n);
             }
@@ -270,7 +279,7 @@ impl<Log: log::Log> ServerState<Log> {
     }
 
     /// A followers response indicates that they are inconsistent with the leader
-    /// If AppendEntries fails because of log inconsistency: decrement nextIndex and retry (§5.3)
+    /// If `AppendEntries` fails because of log inconsistency: decrement nextIndex and retry (§5.3)
     pub fn follower_inconsistent(&mut self, from: ServerId) {
         if let States::Leader(Leader {
             next_index,
@@ -286,7 +295,7 @@ impl<Log: log::Log> ServerState<Log> {
 
     /// Invoked by leader to replicate log entries (§5.3); also used as heartbeat (§5.2).
     /// 1.  Reply false if term < currentTerm (§5.1)
-    /// 2.  Reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm (§5.3)
+    /// 2.  Reply false if log doesn’t contain an entry at `prevLogIndex` whose term matches `prevLogTerm` (§5.3)
     /// 3.  If an existing entry conflicts with a new one (same index but different terms), delete the existing entry and all that follow it (§5.3)
     /// 4.  Append any new entries not already in the log
     /// 5.  If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)
@@ -368,7 +377,11 @@ impl<Log: log::Log> ServerState<Log> {
             self.last_applied += 1;
             let command = self.persistent_state.log.get_command(self.last_applied);
             receiver(command);
-            let term = self.persistent_state.log.get_term(self.last_applied).expect("applied command to exist");
+            let term = self
+                .persistent_state
+                .log
+                .get_term(self.last_applied)
+                .expect("applied command to exist");
             applied.push((self.last_applied, term));
         }
         applied

@@ -52,11 +52,12 @@ fn happy_path() {
         let match_index = req.prev_log_index + req.entries.len();
         assert_eq!(req.entries.len(), 0);
         // it is sent to each of the other servers
-        let response = servers[server_id as usize]
-            .api
-            .receive_append_entries(req);
+        let response = servers[server_id as usize].api.receive_append_entries(req);
         // they respond so the leader can keep track of their progress
-        let applied_commands = servers[0].api.receive_append_entries_response(server_id, match_index, response);
+        let applied_commands =
+            servers[0]
+                .api
+                .receive_append_entries_response(server_id, match_index, response);
         // there were no commands to apply yet
         assert_eq!(applied_commands.len(), 0);
     }
@@ -68,7 +69,10 @@ fn happy_path() {
     for (count, (server_id, req)) in servers[0].api.heartbeat().into_iter().enumerate() {
         let match_index = req.prev_log_index + req.entries.len();
         let response = servers[server_id as usize].api.receive_append_entries(req);
-        let applied_commands = servers[0].api.receive_append_entries_response(server_id, match_index, response);
+        let applied_commands =
+            servers[0]
+                .api
+                .receive_append_entries_response(server_id, match_index, response);
         // once the first server has reponded that it has replicated the command, we have a majority and so the command will be committed and applied
         if count == 0 {
             assert_eq!(applied_commands.len(), 1);
@@ -85,7 +89,10 @@ fn happy_path() {
         let match_index = req.prev_log_index + req.entries.len();
         let response = servers[server_id as usize].api.receive_append_entries(req);
         assert!(response.success);
-        let applied_commands = servers[0].api.receive_append_entries_response(server_id, match_index, response);
+        let applied_commands =
+            servers[0]
+                .api
+                .receive_append_entries_response(server_id, match_index, response);
         // the leader has no more commands to apply
         assert_eq!(applied_commands.len(), 0);
         // the server has now applied the commited command

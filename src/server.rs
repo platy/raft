@@ -1,5 +1,8 @@
 use super::log;
-use super::rpc::*;
+use super::rpc::{
+    AppendEntriesRequest, AppendEntriesResponse, RPCMessage, RequestVoteRequest,
+    RequestVoteResponse,
+};
 use super::state::ServerState;
 use super::state_machine::Receiver;
 use super::ServerId;
@@ -21,7 +24,7 @@ pub struct Server<Command: Clone, Log: log::Log<Command = Command>> {
 impl<Command: 'static + Clone, Log: log::Log<Command = Command> + Default> Server<Command, Log> {
     pub fn new(server_id: ServerId, state_machine: Box<Receiver<Command>>) -> Self {
         Self {
-            state: Default::default(),
+            state: ServerState::<Log>::default(),
             receiver: Box::new(state_machine),
             server_id,
             votes_this_term: 0,
@@ -44,13 +47,13 @@ impl<Command: 'static + Clone, Log: log::Log<Command = Command>> Server<Command,
 
     /// No messages have been received over the election timeout.
     /// # Followers (§5.2):
-    /// -- If election timeout elapses without receiving AppendEntriesRPC from current leader or granting vote to candidate: convert to candidate
+    /// -- If election timeout elapses without receiving `AppendEntriesRPC` from current leader or granting vote to candidate: convert to candidate
     /// # Candidates (§5.2):
     /// - On conversion to candidate, start election:
     /// -- Increment currentTerm
     /// -- Vote for self
     /// -- Reset election timer
-    /// -- Send RequestVote RPCs to all other servers
+    /// -- Send `RequestVote` RPCs to all other servers
     /// ...
     /// -- If election timeout elapses: start new election
     pub fn election_timeout(&mut self) -> RequestVoteRequest {
@@ -59,7 +62,7 @@ impl<Command: 'static + Clone, Log: log::Log<Command = Command>> Server<Command,
         self.state.start_election(self.server_id)
     }
 
-    /// While waiting for votes, a candidate may receive an AppendEntries RPC from another server claiming to be leader. If the leader’s term
+    /// While waiting for votes, a candidate may receive an `AppendEntries` RPC from another server claiming to be leader. If the leader’s term
     /// (included in its RPC) is at least as large as the candidate’s current term, then the candidate recognizes the leader as legitimate and
     /// returns to follower state. If the term in the RPC is smaller than the candidate’s current term, then the candidate rejects the RPC and continues in candidate state.
     pub fn receive_append_entries<LogEntries: IntoIterator<Item = log::Item<Log::Command>>>(
@@ -81,9 +84,9 @@ impl<Command: 'static + Clone, Log: log::Log<Command = Command>> Server<Command,
         if self.state.is_candidate() && req.term >= self.state.current_term() {
             self.state.follow_new_term(req.term);
         }
-        let res = self.state.receive_append_entries(req);
+        let resp = self.state.receive_append_entries(req);
         self.post_handle();
-        res
+        resp
     }
 
     pub fn receive_request_vote(&mut self, req: RequestVoteRequest) -> RequestVoteResponse {
@@ -91,7 +94,7 @@ impl<Command: 'static + Clone, Log: log::Log<Command = Command>> Server<Command,
         self.state.receive_request_vote(req)
     }
 
-    /// Receives a RequestVote response
+    /// Receives a `RequestVote` response
     /// # Return
     /// if the server determines it has won the election with the received vote, an `AppendEntriesRequest` heartbeat is
     /// returned which the client needs to send to all other servers in the cluster. At this point the client ust also
@@ -126,9 +129,9 @@ impl<Command: 'static + Clone, Log: log::Log<Command = Command>> Server<Command,
         }
     }
 
-    /// Receive response from AppendEntries
+    /// Receive response from `AppendEntriesRequest`
     /// - If successful: update nextIndex and matchIndex for follower (§5.3)
-    /// - If AppendEntries fails because of log inconsistency:decrement nextIndex and retry (§5.3)
+    /// - If `AppendEntriesRequest` fails because of log inconsistency:decrement nextIndex and retry (§5.3)
     /// # Args
     /// Requires the id of the server responding the the append entries request, and the `match_index` which is the index of the last log entry sent in the request.
     /// # Return

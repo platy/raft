@@ -470,9 +470,15 @@
 <span id="470">470</span>
 <span id="471">471</span>
 <span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">log</span>;
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">rpc</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">rpc</span>::{
+    <span class="ident">AppendEntriesRequest</span>, <span class="ident">AppendEntriesResponse</span>, <span class="ident">RPCMessage</span>, <span class="ident">RequestVoteRequest</span>,
+    <span class="ident">RequestVoteResponse</span>,
+};
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">state</span>::<span class="ident">ServerState</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">state_machine</span>::<span class="ident">Receiver</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">ServerId</span>;
@@ -494,7 +500,7 @@
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">Command</span>: <span class="lifetime">&#39;static</span> <span class="op">+</span> <span class="ident">Clone</span>, <span class="ident">Log</span>: <span class="ident">log</span>::<span class="ident">Log</span><span class="op">&lt;</span><span class="ident">Command</span> <span class="op">=</span> <span class="ident">Command</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Default</span><span class="op">&gt;</span> <span class="ident">Server</span><span class="op">&lt;</span><span class="ident">Command</span>, <span class="ident">Log</span><span class="op">&gt;</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">server_id</span>: <span class="ident">ServerId</span>, <span class="ident">state_machine</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">Command</span><span class="op">&gt;</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="self">Self</span> {
-            <span class="ident">state</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
+            <span class="ident">state</span>: <span class="ident">ServerState</span>::<span class="op">&lt;</span><span class="ident">Log</span><span class="op">&gt;</span>::<span class="ident">default</span>(),
             <span class="ident">receiver</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">state_machine</span>),
             <span class="ident">server_id</span>,
             <span class="ident">votes_this_term</span>: <span class="number">0</span>,
@@ -517,13 +523,13 @@
 
     <span class="doccomment">/// No messages have been received over the election timeout.</span>
     <span class="doccomment">/// # Followers (§5.2):</span>
-    <span class="doccomment">/// -- If election timeout elapses without receiving AppendEntriesRPC from current leader or granting vote to candidate: convert to candidate</span>
+    <span class="doccomment">/// -- If election timeout elapses without receiving `AppendEntriesRPC` from current leader or granting vote to candidate: convert to candidate</span>
     <span class="doccomment">/// # Candidates (§5.2):</span>
     <span class="doccomment">/// - On conversion to candidate, start election:</span>
     <span class="doccomment">/// -- Increment currentTerm</span>
     <span class="doccomment">/// -- Vote for self</span>
     <span class="doccomment">/// -- Reset election timer</span>
-    <span class="doccomment">/// -- Send RequestVote RPCs to all other servers</span>
+    <span class="doccomment">/// -- Send `RequestVote` RPCs to all other servers</span>
     <span class="doccomment">/// ...</span>
     <span class="doccomment">/// -- If election timeout elapses: start new election</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">election_timeout</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RequestVoteRequest</span> {
@@ -532,7 +538,7 @@
         <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">start_election</span>(<span class="self">self</span>.<span class="ident">server_id</span>)
     }
 
-    <span class="doccomment">/// While waiting for votes, a candidate may receive an AppendEntries RPC from another server claiming to be leader. If the leader’s term</span>
+    <span class="doccomment">/// While waiting for votes, a candidate may receive an `AppendEntries` RPC from another server claiming to be leader. If the leader’s term</span>
     <span class="doccomment">/// (included in its RPC) is at least as large as the candidate’s current term, then the candidate recognizes the leader as legitimate and</span>
     <span class="doccomment">/// returns to follower state. If the term in the RPC is smaller than the candidate’s current term, then the candidate rejects the RPC and continues in candidate state.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">receive_append_entries</span><span class="op">&lt;</span><span class="ident">LogEntries</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">log</span>::<span class="ident">Item</span><span class="op">&lt;</span><span class="ident">Log</span>::<span class="ident">Command</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>(
@@ -554,9 +560,9 @@
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">is_candidate</span>() <span class="kw-2">&amp;</span><span class="op">&amp;</span> <span class="ident">req</span>.<span class="ident">term</span> <span class="op">&gt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">current_term</span>() {
             <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">follow_new_term</span>(<span class="ident">req</span>.<span class="ident">term</span>);
         }
-        <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">receive_append_entries</span>(<span class="ident">req</span>);
+        <span class="kw">let</span> <span class="ident">resp</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">receive_append_entries</span>(<span class="ident">req</span>);
         <span class="self">self</span>.<span class="ident">post_handle</span>();
-        <span class="ident">res</span>
+        <span class="ident">resp</span>
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">receive_request_vote</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">req</span>: <span class="ident">RequestVoteRequest</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">RequestVoteResponse</span> {
@@ -564,7 +570,7 @@
         <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">receive_request_vote</span>(<span class="ident">req</span>)
     }
 
-    <span class="doccomment">/// Receives a RequestVote response</span>
+    <span class="doccomment">/// Receives a `RequestVote` response</span>
     <span class="doccomment">/// # Return</span>
     <span class="doccomment">/// if the server determines it has won the election with the received vote, an `AppendEntriesRequest` heartbeat is</span>
     <span class="doccomment">/// returned which the client needs to send to all other servers in the cluster. At this point the client ust also</span>
@@ -599,9 +605,9 @@
         }
     }
 
-    <span class="doccomment">/// Receive response from AppendEntries</span>
+    <span class="doccomment">/// Receive response from `AppendEntriesRequest`</span>
     <span class="doccomment">/// - If successful: update nextIndex and matchIndex for follower (§5.3)</span>
-    <span class="doccomment">/// - If AppendEntries fails because of log inconsistency:decrement nextIndex and retry (§5.3)</span>
+    <span class="doccomment">/// - If `AppendEntriesRequest` fails because of log inconsistency:decrement nextIndex and retry (§5.3)</span>
     <span class="doccomment">/// # Args</span>
     <span class="doccomment">/// Requires the id of the server responding the the append entries request, and the `match_index` which is the index of the last log entry sent in the request.</span>
     <span class="doccomment">/// # Return</span>
