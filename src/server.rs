@@ -3,7 +3,7 @@ use super::rpc::{
     AppendEntriesRequest, AppendEntriesResponse, RPCMessage, RequestVoteRequest,
     RequestVoteResponse,
 };
-use super::state::ServerState;
+use super::state::{Persistent, ServerState};
 use super::state_machine::Receiver;
 use super::ServerId;
 use super::Term;
@@ -22,9 +22,13 @@ pub struct Server<Command: Clone, Log: log::Log<Command = Command>> {
 }
 
 impl<Command: 'static + Clone, Log: log::Log<Command = Command> + Default> Server<Command, Log> {
-    pub fn new(server_id: ServerId, state_machine: Box<Receiver<Command>>) -> Self {
+    pub fn new(
+        server_id: ServerId,
+        persistent_state: Persistent<Log>,
+        state_machine: Box<Receiver<Command>>,
+    ) -> Self {
         Self {
-            state: ServerState::<Log>::default(),
+            state: ServerState::<Log>::new(persistent_state),
             receiver: Box::new(state_machine),
             server_id,
             votes_this_term: 0,
@@ -41,6 +45,7 @@ impl<Command: 'static + Clone, Log: log::Log<Command = Command>> Server<Command,
         }
     }
 
+    /// Post handling applies any commited commands
     fn post_handle(&mut self) -> Vec<(log::Index, Term)> {
         self.state.apply_commited(&mut self.receiver)
     }
@@ -81,7 +86,7 @@ impl<Command: 'static + Clone, Log: log::Log<Command = Command>> Server<Command,
         }
         // If the leader’s term (included in its RPC) is at least as large as the candidate’s current term, then the candidate recognizes the leader as legitimate and
         // returns to follower state.
-        if self.state.is_candidate() && req.term >= self.state.current_term() {
+        if req.term >= self.state.current_term() {
             self.state.follow_new_term(req.term);
         }
         let resp = self.state.receive_append_entries(req);
@@ -114,7 +119,7 @@ impl<Command: 'static + Clone, Log: log::Log<Command = Command>> Server<Command,
         // If votes received from majority of servers:
         if self.votes_this_term > total_servers / 2 {
             // become leader
-            self.state.become_leader(total_servers);
+            self.state.become_leader(self.server_id, total_servers);
             // Upon election: send initial empty AppendEntries RPCs
             Some(AppendEntriesRequest {
                 term: self.state.current_term(),
@@ -172,6 +177,12 @@ impl<Command: 'static + Clone, Log: log::Log<Command = Command>> Server<Command,
     }
 }
 
+impl<Command: 'static + Clone, Log: log::Log<Command = Command>> Server<Command, Log> {
+    pub fn get_state(&self) -> &ServerState<Log> {
+        &self.state
+    }
+}
+
 /// All Servers:
 /// • If commitIndex > lastApplied: increment lastApplied, apply log[lastApplied] to state machine (§5.3)
 /// • If RPC request or response contains term T > currentTerm: set currentTerm = T, convert to follower (§5.1)
@@ -188,12 +199,16 @@ mod all_server_rules {
         let sm = move |&command: &i32| {
             acc2.fetch_add(command, Ordering::SeqCst);
         };
-        let mut s: Server<i32, log::InVec<i32>> = Server::new(55, Box::new(sm));
-        s.state.set_log(vec![
-            log::Item::new(1, 10),
-            log::Item::new(1, -5),
-            log::Item::new(1, 1),
-        ]);
+        let persistent_state = Persistent {
+            current_term: 0,
+            log: vec![
+                log::Item::new(1, 10),
+                log::Item::new(1, -5),
+                log::Item::new(1, 1),
+            ],
+            voted_for: None,
+        };
+        let mut s: Server<i32, log::InVec<i32>> = Server::new(55, persistent_state, Box::new(sm));
         s.state.set_commit_index(3);
         s.post_handle();
         assert_eq!(acc.load(Ordering::SeqCst), 6);
@@ -202,7 +217,8 @@ mod all_server_rules {
 
     #[test]
     fn request_updates_term() {
-        let mut s: Server<bool, log::InVec<bool>> = Server::new(55, Box::new(|_: &bool| {}));
+        let mut s: Server<bool, log::InVec<bool>> =
+            Server::new(55, Persistent::default(), Box::new(|_: &bool| {}));
         // make into a candidate for test
         s.election_timeout();
         // then receive message from another candidate or leader
@@ -234,7 +250,8 @@ mod follower_to_candidate_rules {
     #[test]
     fn election_timeout() {
         let server_id = 55;
-        let mut s: Server<bool, log::InVec<bool>> = Server::new(server_id, Box::new(|_: &bool| {}));
+        let mut s: Server<bool, log::InVec<bool>> =
+            Server::new(server_id, Persistent::default(), Box::new(|_: &bool| {}));
         assert_eq!(s.state.current_term(), 0);
         let req = s.election_timeout();
         assert!(s.state.is_candidate(), "convert to candidate");
@@ -259,8 +276,9 @@ mod candidate_rules {
 
     #[test]
     fn become_leader() {
-        let server_id = 55;
-        let mut s: Server<bool, log::InVec<bool>> = Server::new(server_id, Box::new(|_: &bool| {}));
+        let server_id = 0;
+        let mut s: Server<bool, log::InVec<bool>> =
+            Server::new(server_id, Persistent::default(), Box::new(|_: &bool| {}));
         assert_eq!(s.state.current_term(), 0);
         s.election_timeout();
         assert!(s.state.is_candidate());
@@ -284,7 +302,7 @@ mod candidate_rules {
         // Upon election: send initial empty AppendEntries RPCs(heartbeat) to each server; repeat during idle periods to prevent election timeouts (§5.2)
         let announce =
             announce.expect("send initial empty AppendEntries RPCs(heartbeat) to each server");
-        assert_eq!(announce.leader_id, 55);
+        assert_eq!(announce.leader_id, server_id);
         assert_eq!(announce.entries.len(), 0);
         assert_eq!(announce.term, 1);
     }
@@ -295,8 +313,8 @@ mod candidate_rules {
     #[test]
     fn new_leader_appends_entries() {
         let server_id = 55;
-        let mut s: Server<bool, log::InVec<bool>> = Server::new(server_id, Box::new(|_: &bool| {}));
-        assert_eq!(s.state.current_term(), 0);
+        let mut s: Server<bool, log::InVec<bool>> =
+            Server::new(server_id, Persistent::default(), Box::new(|_: &bool| {}));
         s.election_timeout();
         assert!(s.state.is_candidate());
         assert_eq!(s.state.current_term(), 1, "Increment currentTerm");
@@ -317,8 +335,8 @@ mod candidate_rules {
     #[test]
     fn old_leader_appends_entries() {
         let server_id = 55;
-        let mut s: Server<bool, log::InVec<bool>> = Server::new(server_id, Box::new(|_: &bool| {}));
-        assert_eq!(s.state.current_term(), 0);
+        let mut s: Server<bool, log::InVec<bool>> =
+            Server::new(server_id, Persistent::default(), Box::new(|_: &bool| {}));
         s.election_timeout();
         assert_eq!(s.state.current_term(), 1, "Increment currentTerm");
         let res = s.receive_append_entries(AppendEntriesRequest {
@@ -338,8 +356,8 @@ mod candidate_rules {
     #[test]
     fn election_timeout() {
         let server_id = 55;
-        let mut s: Server<bool, log::InVec<bool>> = Server::new(server_id, Box::new(|_: &bool| {}));
-        assert_eq!(s.state.current_term(), 0);
+        let mut s: Server<bool, log::InVec<bool>> =
+            Server::new(server_id, Persistent::default(), Box::new(|_: &bool| {}));
         s.election_timeout();
         assert_eq!(s.state.current_term(), 1, "Increment currentTerm");
         let req = s.election_timeout();
@@ -375,9 +393,12 @@ mod leader_rules {
             println!("SM received command {}", command);
             acc2.fetch_add(command, Ordering::SeqCst);
         };
-        let mut s: Server<i32, log::InVec<i32>> = Server::new(1, Box::new(sm));
-        s.state.set_current_term(1);
-        s.state.set_log(vec![log::Item::new(1, 10)]);
+        let persistent_state = Persistent {
+            current_term: 1,
+            log: vec![log::Item::new(1, 10)],
+            voted_for: None,
+        };
+        let mut s: Server<i32, log::InVec<i32>> = Server::new(1, persistent_state, Box::new(sm));
         s.state.set_commit_index(1);
         s.post_handle();
         assert_eq!(s.state.current_term(), 1);

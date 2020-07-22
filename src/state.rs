@@ -11,9 +11,9 @@ use core::convert::TryInto;
 // @todo operations here need to be persisted to disk and therefore async
 #[derive(Default)]
 pub struct Persistent<Log> {
-    current_term: Term,
-    voted_for: Option<ServerId>,
-    log: Log,
+    pub current_term: Term,
+    pub voted_for: Option<ServerId>,
+    pub log: Log,
 }
 
 impl<Log> Persistent<Log> {
@@ -37,11 +37,12 @@ pub struct Leader {
 }
 
 impl Leader {
-    fn new(num_servers: ServerId, last_log_index: log::Index) -> Leader {
+    fn new(own_id: ServerId, num_servers: ServerId, last_log_index: log::Index) -> Leader {
         let mut next_index = Vec::new();
         next_index.resize(num_servers as usize, last_log_index + 1);
         let mut match_index = Vec::new();
         match_index.resize(num_servers as usize, 0);
+        match_index[own_id as usize] = last_log_index;
         Leader {
             next_index,
             match_index,
@@ -85,7 +86,6 @@ impl Default for States {
 }
 
 /// Volatile state on all servers
-#[derive(Default)]
 pub struct ServerState<Log> {
     state: States,
     persistent_state: Persistent<Log>,
@@ -94,6 +94,15 @@ pub struct ServerState<Log> {
 }
 
 impl<Log: log::Log> ServerState<Log> {
+    pub fn new(persistent_state: Persistent<Log>) -> Self {
+        ServerState {
+            state: States::Follower,
+            persistent_state,
+            commit_index: 0,
+            last_applied: 0,
+        }
+    }
+
     pub fn current_term(&self) -> Term {
         self.persistent_state.current_term
     }
@@ -155,8 +164,9 @@ impl<Log: log::Log> ServerState<Log> {
     }
 
     /// Win an election and become a leader
-    pub fn become_leader(&mut self, num_servers: ServerId) {
+    pub fn become_leader(&mut self, own_id: ServerId, num_servers: ServerId) {
         self.state = States::Leader(Leader::new(
+            own_id,
             num_servers,
             self.persistent_state.log.last_log_index(),
         ))
@@ -184,7 +194,7 @@ impl<Log: log::Log> ServerState<Log> {
         let index = self.persistent_state.log.append(term, command);
         let own_id = self.persistent_state.voted_for.expect("in order to add a command, the server must be a leader and therefore must have voted for itself this term");
         if let States::Leader(leader) = &mut self.state {
-            leader.match_index[own_id as usize] = index;
+            leader.set_match_index(own_id, index);
         } else {
             panic!("must be leader")
         }
@@ -261,7 +271,7 @@ impl<Log: log::Log> ServerState<Log> {
     }
 
     /// A follower has successfully appended
-    /// If successful: update nextIndex and matchIndex forfollower (§5.3)
+    /// If successful: update nextIndex and matchIndex for follower (§5.3)
     pub fn update_follower(&mut self, from: ServerId, match_idx: log::Index) {
         if let States::Leader(leader) = &mut self.state {
             let Leader {
@@ -388,18 +398,10 @@ impl<Log: log::Log> ServerState<Log> {
     }
 }
 
-#[cfg(test)]
+// #[cfg(test)]
 impl<Log: log::Log> ServerState<Log> {
-    pub fn set_log(&mut self, log: Log) {
-        self.persistent_state.log = log
-    }
-
     pub fn log(&self) -> &Log {
         &self.persistent_state.log
-    }
-
-    pub fn set_current_term(&mut self, term: Term) {
-        self.persistent_state.current_term = term;
     }
 
     pub fn get_leader_state(&self) -> &Leader {
@@ -444,9 +446,13 @@ mod test_volatile_state {
 
     type TestServerState = ServerState<log::InVec<u8>>;
 
+    fn test_server_state() -> TestServerState {
+        ServerState::new(Persistent::default())
+    }
+
     #[test]
     fn default() {
-        let volatile_state = TestServerState::default();
+        let volatile_state = test_server_state();
         assert_eq!(volatile_state.state, States::Follower);
         assert_eq!(volatile_state.commit_index, 0);
         assert_eq!(volatile_state.last_applied, 0);
@@ -454,7 +460,7 @@ mod test_volatile_state {
 
     #[test]
     fn commit_index_increases() {
-        let mut volatile_state = TestServerState::default();
+        let mut volatile_state = test_server_state();
         volatile_state.set_commit_index(2);
         assert_eq!(volatile_state.commit_index, 2);
     }
@@ -462,14 +468,14 @@ mod test_volatile_state {
     #[test]
     #[should_panic]
     fn commit_index_increases_monotonically() {
-        let mut volatile_state = TestServerState::default();
+        let mut volatile_state = test_server_state();
         volatile_state.set_commit_index(2);
         volatile_state.set_commit_index(1);
     }
 
     #[test]
     fn last_applied_increases() {
-        let mut volatile_state = TestServerState::default();
+        let mut volatile_state = test_server_state();
         volatile_state.set_last_applied(2);
         assert_eq!(volatile_state.last_applied, 2);
     }
@@ -477,7 +483,7 @@ mod test_volatile_state {
     #[test]
     #[should_panic]
     fn last_applied_increases_monotonically() {
-        let mut volatile_state = TestServerState::default();
+        let mut volatile_state = test_server_state();
         volatile_state.set_last_applied(2);
         volatile_state.set_last_applied(1);
     }
@@ -489,16 +495,17 @@ mod test_leader_state {
 
     #[test]
     fn initial() {
-        let leader_state = Leader::new(2, 4);
+        let leader_state = Leader::new(1, 2, 4);
         assert_eq!(leader_state.next_index.len(), 2);
         assert!(leader_state.next_index.into_iter().all(|e| e == 5));
         assert_eq!(leader_state.match_index.len(), 2);
-        assert!(leader_state.match_index.into_iter().all(|e| e == 0));
+        assert!(leader_state.match_index[0] == 0);
+        assert!(leader_state.match_index[1] == 4);
     }
 
     #[test]
     fn match_index_increases() {
-        let mut leader_state = Leader::new(2, 4);
+        let mut leader_state = Leader::new(1, 2, 4);
         leader_state.set_match_index(0, 7);
         assert_eq!(leader_state.match_index[0], 7);
     }
@@ -506,7 +513,7 @@ mod test_leader_state {
     #[test]
     #[should_panic]
     fn match_index_increases_monotonically() {
-        let mut leader_state = Leader::new(2, 4);
+        let mut leader_state = Leader::new(1, 2, 4);
         leader_state.set_match_index(0, 2);
         leader_state.set_match_index(0, 1);
     }
@@ -531,14 +538,17 @@ mod test_leader_state {
 
 #[cfg(test)]
 mod test_append_entries {
-    use super::ServerState;
+    use super::{Persistent, ServerState};
     use crate::log::{self, Item};
     use crate::rpc::AppendEntriesRequest;
 
     #[test]
     fn impl1() {
-        let mut server: ServerState<log::InVec<u8>> = ServerState::default();
-        server.persistent_state.current_term = 2;
+        let mut server: ServerState<log::InVec<u8>> = ServerState::new(Persistent {
+            current_term: 2,
+            voted_for: None,
+            log: vec![],
+        });
         let req = AppendEntriesRequest {
             term: 1,
             leader_id: 0,
@@ -554,8 +564,11 @@ mod test_append_entries {
 
     #[test]
     fn impl2_no_entry() {
-        let mut server: ServerState<log::InVec<u8>> = ServerState::default();
-        server.persistent_state.current_term = 2;
+        let mut server: ServerState<log::InVec<u8>> = ServerState::new(Persistent {
+            current_term: 2,
+            voted_for: None,
+            log: vec![],
+        });
         let req = AppendEntriesRequest {
             term: 2,
             leader_id: 0,
@@ -571,9 +584,11 @@ mod test_append_entries {
 
     #[test]
     fn impl2_no_term_match() {
-        let mut server: ServerState<log::InVec<u8>> = ServerState::default();
-        server.persistent_state.current_term = 2;
-        server.persistent_state.log.push(Item::new(2, 99));
+        let mut server: ServerState<log::InVec<u8>> = ServerState::new(Persistent {
+            current_term: 2,
+            voted_for: None,
+            log: vec![Item::new(2, 99)],
+        });
         let req = AppendEntriesRequest {
             term: 2,
             leader_id: 0,
@@ -589,11 +604,11 @@ mod test_append_entries {
 
     #[test]
     fn impl3_first_doesnt_match() {
-        let mut server: ServerState<log::InVec<u8>> = ServerState::default();
-        server.persistent_state.current_term = 2;
-        server.persistent_state.log.push(Item::new(1, 99));
-        server.persistent_state.log.push(Item::new(2, 99));
-        server.persistent_state.log.push(Item::new(2, 99));
+        let mut server: ServerState<log::InVec<u8>> = ServerState::new(Persistent {
+            current_term: 2,
+            voted_for: None,
+            log: vec![Item::new(1, 99), Item::new(2, 99), Item::new(2, 99)],
+        });
         let req = AppendEntriesRequest {
             term: 3,
             leader_id: 0,
@@ -613,12 +628,16 @@ mod test_append_entries {
 
     #[test]
     fn impl3_second_doesnt_match() {
-        let mut server: ServerState<log::InVec<u8>> = ServerState::default();
-        server.persistent_state.current_term = 2;
-        server.persistent_state.log.push(Item::new(1, 99));
-        server.persistent_state.log.push(Item::new(2, 99));
-        server.persistent_state.log.push(Item::new(2, 99));
-        server.persistent_state.log.push(Item::new(2, 99));
+        let mut server: ServerState<log::InVec<u8>> = ServerState::new(Persistent {
+            current_term: 2,
+            voted_for: None,
+            log: vec![
+                Item::new(1, 99),
+                Item::new(2, 99),
+                Item::new(2, 99),
+                Item::new(2, 99),
+            ],
+        });
         let req = AppendEntriesRequest {
             term: 3,
             leader_id: 0,
@@ -638,11 +657,11 @@ mod test_append_entries {
 
     #[test]
     fn impl3_4() {
-        let mut server: ServerState<log::InVec<u8>> = ServerState::default();
-        server.persistent_state.current_term = 2;
-        server.persistent_state.log.push(Item::new(1, 99));
-        server.persistent_state.log.push(Item::new(2, 99));
-        server.persistent_state.log.push(Item::new(2, 99));
+        let mut server: ServerState<log::InVec<u8>> = ServerState::new(Persistent {
+            current_term: 2,
+            voted_for: None,
+            log: vec![Item::new(1, 99), Item::new(2, 99), Item::new(2, 99)],
+        });
         let req = AppendEntriesRequest {
             term: 3,
             leader_id: 0,
@@ -675,11 +694,11 @@ mod test_append_entries {
 
     #[test]
     fn impl4() {
-        let mut server: ServerState<log::InVec<u8>> = ServerState::default();
-        server.persistent_state.current_term = 2;
-        server.persistent_state.log.push(Item::new(1, 99));
-        server.persistent_state.log.push(Item::new(2, 99));
-        server.persistent_state.log.push(Item::new(2, 99));
+        let mut server: ServerState<log::InVec<u8>> = ServerState::new(Persistent {
+            current_term: 2,
+            voted_for: None,
+            log: vec![Item::new(1, 99), Item::new(2, 99), Item::new(2, 99)],
+        });
         let req = AppendEntriesRequest {
             term: 3,
             leader_id: 0,
@@ -708,12 +727,12 @@ mod test_append_entries {
 
     #[test]
     fn impl5_leader_commit() {
-        let mut server: ServerState<log::InVec<u8>> = ServerState::default();
-        server.persistent_state.current_term = 2;
+        let mut server: ServerState<log::InVec<u8>> = ServerState::new(Persistent {
+            current_term: 2,
+            voted_for: None,
+            log: vec![Item::new(1, 99), Item::new(2, 99), Item::new(2, 99)],
+        });
         server.commit_index = 1;
-        server.persistent_state.log.push(Item::new(1, 99));
-        server.persistent_state.log.push(Item::new(2, 99));
-        server.persistent_state.log.push(Item::new(2, 99));
         let req = AppendEntriesRequest {
             term: 2,
             leader_id: 0,
@@ -730,12 +749,12 @@ mod test_append_entries {
 
     #[test]
     fn impl5_leader_commit_passes() {
-        let mut server: ServerState<log::InVec<u8>> = ServerState::default();
-        server.persistent_state.current_term = 2;
+        let mut server: ServerState<log::InVec<u8>> = ServerState::new(Persistent {
+            current_term: 2,
+            voted_for: None,
+            log: vec![Item::new(1, 99), Item::new(2, 99), Item::new(2, 99)],
+        });
         server.commit_index = 1;
-        server.persistent_state.log.push(Item::new(1, 99));
-        server.persistent_state.log.push(Item::new(2, 99));
-        server.persistent_state.log.push(Item::new(2, 99));
         let req = AppendEntriesRequest {
             term: 3,
             leader_id: 0,
@@ -753,14 +772,17 @@ mod test_append_entries {
 
 #[cfg(test)]
 mod test_request_vote {
-    use super::ServerState;
+    use super::{Persistent, ServerState};
     use crate::log::{self, Item};
     use crate::rpc::RequestVoteRequest;
 
     #[test]
     fn impl1() {
-        let mut server: ServerState<log::InVec<u8>> = ServerState::default();
-        server.persistent_state.current_term = 2;
+        let mut server: ServerState<log::InVec<u8>> = ServerState::new(Persistent {
+            current_term: 2,
+            voted_for: None,
+            log: vec![],
+        });
         let req = RequestVoteRequest {
             term: 1,
             candidate_id: 0,
@@ -774,10 +796,11 @@ mod test_request_vote {
 
     #[test]
     fn impl2_novote_log_same() {
-        let mut server: ServerState<log::InVec<u8>> = ServerState::default();
-        server.persistent_state.current_term = 1;
-        server.persistent_state.voted_for = None;
-        server.persistent_state.log.push(Item::new(1, 99));
+        let mut server: ServerState<log::InVec<u8>> = ServerState::new(Persistent {
+            current_term: 1,
+            voted_for: None,
+            log: vec![Item::new(1, 99)],
+        });
         let req = RequestVoteRequest {
             term: 2,
             candidate_id: 0,
@@ -792,9 +815,11 @@ mod test_request_vote {
 
     #[test]
     fn impl2_voted_log_shorter() {
-        let mut server: ServerState<log::InVec<u8>> = ServerState::default();
-        server.persistent_state.current_term = 1;
-        server.persistent_state.voted_for = Some(0);
+        let mut server: ServerState<log::InVec<u8>> = ServerState::new(Persistent {
+            current_term: 1,
+            voted_for: Some(0),
+            log: vec![],
+        });
         let req = RequestVoteRequest {
             term: 2,
             candidate_id: 0,
@@ -809,10 +834,11 @@ mod test_request_vote {
 
     #[test]
     fn impl2_votedother_log_same() {
-        let mut server: ServerState<log::InVec<u8>> = ServerState::default();
-        server.persistent_state.current_term = 1;
-        server.persistent_state.voted_for = Some(1);
-        server.persistent_state.log.push(Item::new(1, 99));
+        let mut server: ServerState<log::InVec<u8>> = ServerState::new(Persistent {
+            current_term: 1,
+            voted_for: Some(1),
+            log: vec![Item::new(1, 99)],
+        });
         let req = RequestVoteRequest {
             term: 2,
             candidate_id: 0,
@@ -826,10 +852,11 @@ mod test_request_vote {
 
     #[test]
     fn impl2_novote_log_longer() {
-        let mut server: ServerState<log::InVec<u8>> = ServerState::default();
-        server.persistent_state.current_term = 1;
-        server.persistent_state.voted_for = Some(1);
-        server.persistent_state.log.push(Item::new(1, 99));
+        let mut server: ServerState<log::InVec<u8>> = ServerState::new(Persistent {
+            current_term: 1,
+            voted_for: Some(1),
+            log: vec![Item::new(1, 99)],
+        });
         let req = RequestVoteRequest {
             term: 2,
             candidate_id: 0,

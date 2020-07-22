@@ -26,7 +26,7 @@ pub struct AppendEntriesRequest<Command: Clone, LogEntries: IntoIterator<Item = 
     pub leader_commit: log::Index,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AppendEntriesResponse {
     /// currentTerm, for leader to update itself
     pub term: Term,

@@ -2,6 +2,7 @@
 
 use core::sync::atomic::{AtomicI32, Ordering};
 use raft::server::Server;
+use raft::state::Persistent;
 use raft::*;
 use std::rc::Rc;
 
@@ -11,14 +12,19 @@ struct TestServer {
 }
 
 impl TestServer {
-    fn new(server_id: ServerId) -> TestServer {
+    fn new(server_id: ServerId, current_term: Term, log: log::InVec<i32>) -> TestServer {
         let acc = Rc::new(AtomicI32::new(0));
         let acc2 = acc.clone();
         let sm = move |&command: &i32| {
             acc2.fetch_add(command, Ordering::SeqCst);
         };
+        let persistent = Persistent {
+            current_term,
+            log,
+            voted_for: None,
+        };
         TestServer {
-            api: Server::new(server_id, Box::new(sm)),
+            api: Server::new(server_id, persistent, Box::new(sm)),
             state: acc,
         }
     }
@@ -33,7 +39,7 @@ fn happy_path() {
     // cluster of 3 servers
     let mut servers: Vec<TestServer> = (0..3)
         .into_iter()
-        .map(|server_id| TestServer::new(server_id))
+        .map(|server_id| TestServer::new(server_id, 0, vec![]))
         .collect();
 
     // one times out and becomes a candidate
@@ -97,5 +103,162 @@ fn happy_path() {
         assert_eq!(applied_commands.len(), 0);
         // the server has now applied the commited command
         assert_eq!(servers[server_id as usize].value(), 11);
+    }
+}
+
+/// a series of scenarios from Figure 7 in the spec. A leader comes to power and its follower doesn't match and needs either some more
+/// commands, some removed, or both. the leader will force the follower to duplicate its own log §5.3
+mod leader_catch_up {
+    use super::*;
+    use raft::rpc::RequestVoteResponse;
+
+    const LEADER_LOG: [u32; 10] = [1, 1, 1, 4, 4, 5, 5, 6, 6, 6];
+
+    fn log_of(terms: &[Term]) -> log::InVec<i32> {
+        terms
+            .into_iter()
+            .map(|&term| log::Item::new(term, term as i32))
+            .collect()
+    }
+
+    fn leader() -> TestServer {
+        let mut server = TestServer::new(0, 7, log_of(&LEADER_LOG[..]));
+        let req = server.api.election_timeout();
+        assert_eq!(req.term, 8);
+        server.api.receive_vote(
+            RequestVoteResponse {
+                vote_granted: true,
+                term: req.term,
+            },
+            2,
+        );
+        server
+    }
+
+    fn follower(terms: &[Term]) -> TestServer {
+        TestServer::new(0, 0, log_of(terms))
+    }
+
+    #[test]
+    fn a() {
+        let mut leader = leader();
+        let mut follower = follower(&[1, 1, 1, 4, 4, 5, 5, 6, 6]);
+
+        for _ in 0..2 {
+            let (follower_id, req) = leader.api.heartbeat().into_iter().next().unwrap();
+            println!("heartbeat {:?}", req);
+            let match_index = req.prev_log_index + req.entries.len();
+            assert_eq!(follower_id, 1);
+            let resp = follower.api.receive_append_entries(req);
+            println!("response {:?}", resp);
+            let completed_commands =
+                leader
+                    .api
+                    .receive_append_entries_response(follower_id, match_index, resp);
+            println!("completed {:?}", completed_commands);
+            assert_eq!(completed_commands.len(), 0);
+        }
+
+        assert_eq!(follower.api.get_state().log(), &log_of(&LEADER_LOG));
+    }
+
+    #[test]
+    fn b() {
+        let mut leader = leader();
+        let mut follower = follower(&[1, 1, 1, 4]);
+
+        for _ in 0..7 {
+            let (follower_id, req) = leader.api.heartbeat().into_iter().next().unwrap();
+            let match_index = req.prev_log_index + req.entries.len();
+            assert_eq!(follower_id, 1);
+            let resp = follower.api.receive_append_entries(req);
+            let completed_commands =
+                leader
+                    .api
+                    .receive_append_entries_response(follower_id, match_index, resp);
+            assert_eq!(completed_commands.len(), 0);
+        }
+
+        assert_eq!(follower.api.get_state().log(), &log_of(&LEADER_LOG));
+    }
+
+    #[test]
+    fn c() {
+        let mut leader = leader();
+        let mut follower = follower(&[1, 1, 1, 4, 4, 5, 5, 6, 6, 6, 6]);
+
+        for _ in 0..2 {
+            let (follower_id, req) = leader.api.heartbeat().into_iter().next().unwrap();
+            let match_index = req.prev_log_index + req.entries.len();
+            assert_eq!(follower_id, 1);
+            let resp = follower.api.receive_append_entries(req);
+            let completed_commands =
+                leader
+                    .api
+                    .receive_append_entries_response(follower_id, match_index, resp);
+            assert_eq!(completed_commands.len(), 0);
+        }
+
+        assert_eq!(follower.api.get_state().log(), &log_of(&LEADER_LOG));
+    }
+
+    #[test]
+    fn d() {
+        let mut leader = leader();
+        let mut follower = follower(&[1, 1, 1, 4, 4, 5, 5, 6, 6, 6, 7, 7]);
+
+        for _ in 0..2 {
+            let (follower_id, req) = leader.api.heartbeat().into_iter().next().unwrap();
+            let match_index = req.prev_log_index + req.entries.len();
+            assert_eq!(follower_id, 1);
+            let resp = follower.api.receive_append_entries(req);
+            let completed_commands =
+                leader
+                    .api
+                    .receive_append_entries_response(follower_id, match_index, resp);
+            assert_eq!(completed_commands.len(), 0);
+        }
+
+        assert_eq!(follower.api.get_state().log(), &log_of(&LEADER_LOG));
+    }
+
+    #[test]
+    fn e() {
+        let mut leader = leader();
+        let mut follower = follower(&[1, 1, 1, 4, 4, 4, 4]);
+
+        for _ in 0..7 {
+            let (follower_id, req) = leader.api.heartbeat().into_iter().next().unwrap();
+            let match_index = req.prev_log_index + req.entries.len();
+            assert_eq!(follower_id, 1);
+            let resp = follower.api.receive_append_entries(req);
+            let completed_commands =
+                leader
+                    .api
+                    .receive_append_entries_response(follower_id, match_index, resp);
+            assert_eq!(completed_commands.len(), 0);
+        }
+
+        assert_eq!(follower.api.get_state().log(), &log_of(&LEADER_LOG));
+    }
+
+    #[test]
+    fn f() {
+        let mut leader = leader();
+        let mut follower = follower(&[1, 1, 1, 2, 2, 2, 3, 3, 3, 3, 3]);
+
+        for _ in 0..8 {
+            let (follower_id, req) = leader.api.heartbeat().into_iter().next().unwrap();
+            let match_index = req.prev_log_index + req.entries.len();
+            assert_eq!(follower_id, 1);
+            let resp = follower.api.receive_append_entries(req);
+            let completed_commands =
+                leader
+                    .api
+                    .receive_append_entries_response(follower_id, match_index, resp);
+            assert_eq!(completed_commands.len(), 0);
+        }
+
+        assert_eq!(follower.api.get_state().log(), &log_of(&LEADER_LOG));
     }
 }
