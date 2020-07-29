@@ -868,12 +868,19 @@
 <span id="868">868</span>
 <span id="869">869</span>
 <span id="870">870</span>
+<span id="871">871</span>
+<span id="872">872</span>
+<span id="873">873</span>
+<span id="874">874</span>
+<span id="875">875</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">log</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">rpc</span>::{
     <span class="ident">AppendEntriesRequest</span>, <span class="ident">AppendEntriesResponse</span>, <span class="ident">RequestVoteRequest</span>, <span class="ident">RequestVoteResponse</span>,
 };
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">state_machine</span>::<span class="ident">Receiver</span>;
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">CommandPtr</span>;
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">NotLeader</span>;
 <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">ServerId</span>, <span class="ident">Term</span>};
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">cmp</span>::<span class="ident">Ordering</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">convert</span>::<span class="ident">TryInto</span>;
@@ -1060,16 +1067,19 @@
     }
 
     <span class="doccomment">/// Add a command from a client to this leader</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_command</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">command</span>: <span class="ident">Log</span>::<span class="ident">Command</span>) <span class="op">-</span><span class="op">&gt;</span> (<span class="ident">log</span>::<span class="ident">Index</span>, <span class="ident">Term</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_command</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">command</span>: <span class="ident">Log</span>::<span class="ident">Command</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">CommandPtr</span>, <span class="ident">NotLeader</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">term</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">current_term</span>;
         <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">log</span>.<span class="ident">append</span>(<span class="ident">term</span>, <span class="ident">command</span>);
-        <span class="kw">let</span> <span class="ident">own_id</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">persistent_state</span>.<span class="ident">voted_for</span>.<span class="ident">expect</span>(<span class="string">&quot;in order to add a command, the server must be a leader and therefore must have voted for itself this term&quot;</span>);
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">States</span>::<span class="ident">Leader</span>(<span class="ident">leader</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">state</span> {
+            <span class="kw">let</span> <span class="ident">own_id</span> <span class="op">=</span> <span class="self">self</span>
+                .<span class="ident">persistent_state</span>
+                .<span class="ident">voted_for</span>
+                .<span class="ident">expect</span>(<span class="string">&quot;leader should have voted for itself&quot;</span>);
             <span class="ident">leader</span>.<span class="ident">set_match_index</span>(<span class="ident">own_id</span>, <span class="ident">index</span>);
+            <span class="prelude-val">Ok</span>((<span class="ident">index</span>, <span class="ident">term</span>))
         } <span class="kw">else</span> {
-            <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;must be leader&quot;</span>)
+            <span class="prelude-val">Err</span>(<span class="ident">NotLeader</span>)
         }
-        (<span class="ident">index</span>, <span class="ident">term</span>)
     }
 
     <span class="doccomment">/// # Panics</span>
@@ -1740,4 +1750,4 @@
     }
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../";window.currentCrate = "raft";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../";window.currentCrate = "raft";</script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

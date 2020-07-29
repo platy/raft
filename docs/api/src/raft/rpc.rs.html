@@ -68,11 +68,15 @@
 <span id="68">68</span>
 <span id="69">69</span>
 <span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">//! Raft servers communicate using remote procedure calls(RPCs), and the basic consensus algorithm requires only two types of RPCs. `RequestVote` RPCs are initiated bycandidates during elections (Section 5.2), and Append-Entries RPCs are initiated by leaders to replicate log en-tries and to provide a form of heartbeat (Section 5.3). Sec-tion 7 adds a third RPC for transferring snapshots betweenservers. Servers retry RPCs if they do not receive a re-sponse in a timely manner, and they issue RPCs in parallelfor best performance.</span>
 
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">log</span>;
 <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">ServerId</span>, <span class="ident">Term</span>};
+<span class="kw">use</span> <span class="ident">actix</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Serialize</span>};
 
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">RPCMessage</span> {
@@ -80,7 +84,8 @@
 }
 
 <span class="doccomment">/// Invoked by leader to replicate log entries (§5.3); also used asheartbeat (§5.2).</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Message</span>)]</span> <span class="comment">// todo add feature flag</span>
+<span class="attribute">#[<span class="ident">rtype</span>(<span class="ident">result</span> <span class="op">=</span> <span class="string">&quot;AppendEntriesResponse&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AppendEntriesRequest</span><span class="op">&lt;</span><span class="ident">Command</span>: <span class="ident">Clone</span>, <span class="ident">LogEntries</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">log</span>::<span class="ident">Item</span><span class="op">&lt;</span><span class="ident">Command</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>
 {
     <span class="doccomment">/// leader’s term</span>
@@ -106,7 +111,8 @@
 }
 
 <span class="doccomment">/// Invoked by candidates to gather votes (§5.2).</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>, <span class="ident">Message</span>)]</span>
+<span class="attribute">#[<span class="ident">rtype</span>(<span class="ident">result</span> <span class="op">=</span> <span class="string">&quot;RequestVoteResponse&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RequestVoteRequest</span> {
     <span class="doccomment">/// candidate’s term</span>
     <span class="kw">pub</span> <span class="ident">term</span>: <span class="ident">Term</span>,
@@ -118,7 +124,7 @@
     <span class="kw">pub</span> <span class="ident">last_log_term</span>: <span class="ident">Term</span>,
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">RequestVoteResponse</span> {
     <span class="doccomment">/// currentTerm, for candidate to update itself</span>
     <span class="kw">pub</span> <span class="ident">term</span>: <span class="ident">Term</span>,
@@ -140,4 +146,4 @@
     }
 }
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../";window.currentCrate = "raft";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../";window.currentCrate = "raft";</script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

@@ -9,6 +9,12 @@
 <span id="9"> 9</span>
 <span id="10">10</span>
 <span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
 
@@ -16,10 +22,16 @@
 <span class="doccomment">/// Time is divided into terms, and each term beginswith an election. After a successful election, a single leadermanages the cluster until the end of the term. Some electionsfail, in which case the term ends without choosing a leader.The transitions between terms may be observed at differenttimes on different servers.</span>
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">Term</span> <span class="op">=</span> <span class="ident">u32</span>;
 
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">CommandPtr</span> <span class="op">=</span> (<span class="ident">log</span>::<span class="ident">Index</span>, <span class="ident">Term</span>);
+
+<span class="doccomment">/// Error when a non-leader is asked to do something only a leader can do</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NotLeader</span>;
+
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">log</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">rpc</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">server</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">state</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">state_machine</span>;
 </pre></div>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../";window.currentCrate = "raft";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../";window.currentCrate = "raft";</script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>

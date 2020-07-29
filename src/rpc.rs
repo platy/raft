@@ -2,6 +2,7 @@
 
 use super::log;
 use super::{ServerId, Term};
+use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 
 pub trait RPCMessage {
@@ -9,7 +10,8 @@ pub trait RPCMessage {
 }
 
 /// Invoked by leader to replicate log entries (§5.3); also used asheartbeat (§5.2).
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, Message)] // todo add feature flag
+#[rtype(result = "AppendEntriesResponse")]
 pub struct AppendEntriesRequest<Command: Clone, LogEntries: IntoIterator<Item = log::Item<Command>>>
 {
     /// leader’s term
@@ -35,7 +37,8 @@ pub struct AppendEntriesResponse {
 }
 
 /// Invoked by candidates to gather votes (§5.2).
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Message)]
+#[rtype(result = "RequestVoteResponse")]
 pub struct RequestVoteRequest {
     /// candidate’s term
     pub term: Term,

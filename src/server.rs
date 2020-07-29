@@ -5,10 +5,10 @@ use super::rpc::{
 };
 use super::state::{Persistent, ServerState};
 use super::state_machine::Receiver;
-use super::ServerId;
-use super::NotLeader;
-use core::iter;
 use super::CommandPtr;
+use super::NotLeader;
+use super::ServerId;
+use core::iter;
 
 /// The logic of a raft server except for delay, timouts, messaging and configuration which are handled by the client
 pub struct Server<Command: Clone, Log: log::Log<Command = Command>> {

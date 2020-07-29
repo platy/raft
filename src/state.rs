@@ -3,9 +3,9 @@ use super::rpc::{
     AppendEntriesRequest, AppendEntriesResponse, RequestVoteRequest, RequestVoteResponse,
 };
 use super::state_machine::Receiver;
-use super::{ServerId, Term};
 use super::CommandPtr;
 use super::NotLeader;
+use super::{ServerId, Term};
 use core::cmp::Ordering;
 use core::convert::TryInto;
 
@@ -195,7 +195,10 @@ impl<Log: log::Log> ServerState<Log> {
         let term = self.persistent_state.current_term;
         let index = self.persistent_state.log.append(term, command);
         if let States::Leader(leader) = &mut self.state {
-            let own_id = self.persistent_state.voted_for.expect("leader should have voted for itself");
+            let own_id = self
+                .persistent_state
+                .voted_for
+                .expect("leader should have voted for itself");
             leader.set_match_index(own_id, index);
             Ok((index, term))
         } else {
