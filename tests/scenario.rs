@@ -42,14 +42,17 @@ fn happy_path() {
         .map(|server_id| TestServer::new(server_id, 0, vec![]))
         .collect();
 
-    // one times out and becomes a candidate
+    // If a follower receives no communication over a period of time called the election timeout, then it assumes there is no viable leader and begins an election to choose a new leader.
     let vote_request = servers[0].api.election_timeout();
-    // votes are requested from the other servers and they respond
+    // To begin an election, a follower increments its current term and transitions to candidate state. It then votes for itself and issues RequestVote RPCs in parallel to each of the other servers in the cluster.
     let vote = servers[1].api.receive_request_vote(vote_request.clone());
     let announce1 = servers[0].api.receive_vote(vote, 3);
     let vote = servers[2].api.receive_request_vote(vote_request);
     let announce2 = servers[0].api.receive_vote(vote, 3);
-    // first server becomes leader, and announces with a heartbeat. The first vote is enought to have a majority
+    // A candidate wins an election if it receives votes from a majority of the servers in the full cluster for the same
+    // term. Each server will vote for at most one candidate in a given term, on a first-come-first-served basis.
+    // (In this three server cluster, the first vote is enought to have a majority)
+    // Once a candidate wins an election, it becomes leader. It then sends heartbeat messages to all ofthe other servers to establish its authority and prevent new elections.
     assert!(announce1.is_some());
     assert!(announce2.is_none());
     for server_id in 1..3 {
@@ -68,7 +71,7 @@ fn happy_path() {
         assert_eq!(applied_commands.len(), 0);
     }
     // we can now give it a command
-    let command_ptr = servers[0].api.command(11);
+    let command_ptr = servers[0].api.command(11).unwrap();
     // at this point the command is not applied
     assert_eq!(servers[0].value(), 0);
     // after a heartbeat the other servers' logs are updated to match the leader
@@ -104,6 +107,25 @@ fn happy_path() {
         // the server has now applied the commited command
         assert_eq!(servers[server_id as usize].value(), 11);
     }
+}
+
+mod elections {
+    // While waiting for votes, a candidate may receive an AppendEntries RPC from another server claiming to be leader.
+    // If the leader’s term (included in its RPC) is at least as large as the candidate’s current term, then the candidate
+    // recognizes the leader as legitimate and returns to follower state.
+    #[test]
+    fn candidate_loses() {}
+
+    // If the term in the RPC is smaller than the candidate’s current term, then the candidate rejects the RPC and con-tinues in candidate state.
+    #[test]
+    fn old_leader_returns() {}
+
+    // The third possible outcome is that a candidate neither wins nor loses the election: if many followers become
+    // candidates at the same time, votes could be split so that no candidate obtains a majority. When this happens,
+    // each candidate will time out and start a new election by incrementing its term and initiating another round
+    // of Request-Vote RPCs.
+    #[test]
+    fn split_vote() {}
 }
 
 /// a series of scenarios from Figure 7 in the spec. A leader comes to power and its follower doesn't match and needs either some more

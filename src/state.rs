@@ -4,6 +4,8 @@ use super::rpc::{
 };
 use super::state_machine::Receiver;
 use super::{ServerId, Term};
+use super::CommandPtr;
+use super::NotLeader;
 use core::cmp::Ordering;
 use core::convert::TryInto;
 
@@ -189,16 +191,16 @@ impl<Log: log::Log> ServerState<Log> {
     }
 
     /// Add a command from a client to this leader
-    pub fn add_command(&mut self, command: Log::Command) -> (log::Index, Term) {
+    pub fn add_command(&mut self, command: Log::Command) -> Result<CommandPtr, NotLeader> {
         let term = self.persistent_state.current_term;
         let index = self.persistent_state.log.append(term, command);
-        let own_id = self.persistent_state.voted_for.expect("in order to add a command, the server must be a leader and therefore must have voted for itself this term");
         if let States::Leader(leader) = &mut self.state {
+            let own_id = self.persistent_state.voted_for.expect("leader should have voted for itself");
             leader.set_match_index(own_id, index);
+            Ok((index, term))
         } else {
-            panic!("must be leader")
+            Err(NotLeader)
         }
-        (index, term)
     }
 
     /// # Panics

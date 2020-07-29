@@ -6,8 +6,9 @@ use super::rpc::{
 use super::state::{Persistent, ServerState};
 use super::state_machine::Receiver;
 use super::ServerId;
-use super::Term;
+use super::NotLeader;
 use core::iter;
+use super::CommandPtr;
 
 /// The logic of a raft server except for delay, timouts, messaging and configuration which are handled by the client
 pub struct Server<Command: Clone, Log: log::Log<Command = Command>> {
@@ -29,7 +30,7 @@ impl<Command: 'static + Clone, Log: log::Log<Command = Command> + Default> Serve
     ) -> Self {
         Self {
             state: ServerState::<Log>::new(persistent_state),
-            receiver: Box::new(state_machine),
+            receiver: state_machine,
             server_id,
             votes_this_term: 0,
         }
@@ -46,7 +47,7 @@ impl<Command: 'static + Clone, Log: log::Log<Command = Command>> Server<Command,
     }
 
     /// Post handling applies any commited commands
-    fn post_handle(&mut self) -> Vec<(log::Index, Term)> {
+    fn post_handle(&mut self) -> Vec<CommandPtr> {
         self.state.apply_commited(&mut self.receiver)
     }
 
@@ -147,7 +148,7 @@ impl<Command: 'static + Clone, Log: log::Log<Command = Command>> Server<Command,
         from: ServerId,
         match_index: log::Index,
         res: AppendEntriesResponse,
-    ) -> Vec<(log::Index, Term)> {
+    ) -> Vec<CommandPtr> {
         // @todo also check for new term
         if res.success {
             self.state.update_follower(from, match_index);
@@ -162,7 +163,7 @@ impl<Command: 'static + Clone, Log: log::Log<Command = Command>> Server<Command,
     /// # Return
     /// Command pointer, the client can be informed of the successful application of the command once this command
     /// pointer s returned by `receive_append_entries_response`
-    pub fn command(&mut self, command: Log::Command) -> (log::Index, Term) {
+    pub fn command(&mut self, command: Log::Command) -> Result<CommandPtr, NotLeader> {
         self.state.add_command(command)
     }
 
@@ -422,7 +423,7 @@ mod leader_rules {
         assert_eq!(s.state.log().last_log_term(), 2);
         assert_eq!(
             command_id,
-            (2, 2),
+            Ok((2, 2)),
             "the index and term which when commited will activate the response"
         );
         assert_eq!(

@@ -35,7 +35,7 @@ pub struct AppendEntriesResponse {
 }
 
 /// Invoked by candidates to gather votes (§5.2).
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct RequestVoteRequest {
     /// candidate’s term
     pub term: Term,
@@ -47,7 +47,7 @@ pub struct RequestVoteRequest {
     pub last_log_term: Term,
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct RequestVoteResponse {
     /// currentTerm, for candidate to update itself
     pub term: Term,
